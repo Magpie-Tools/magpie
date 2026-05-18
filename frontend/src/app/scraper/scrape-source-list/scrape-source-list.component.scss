@@ -107,6 +107,11 @@ $border-color: rgba(255, 255, 255, 0.1);
   white-space: nowrap;
 }
 
+:host ::ng-deep .scrape-source-table .column-alive_count {
+  width: 8.75rem;
+  white-space: nowrap;
+}
+
 :host ::ng-deep .scrape-source-table .column-health {
   width: 10rem;
 }
@@ -127,6 +132,7 @@ $border-color: rgba(255, 255, 255, 0.1);
 }
 
 :host ::ng-deep .scrape-source-table .column-proxy_count,
+:host ::ng-deep .scrape-source-table .column-alive_count,
 :host ::ng-deep .scrape-source-table .column-scrape_now,
 :host ::ng-deep .scrape-source-table .column-actions {
   padding-inline: 0.5rem;

@@ -1,6 +1,7 @@
 export type ScrapeSourceListColumnId =
   | 'url'
   | 'proxy_count'
+  | 'alive_count'
   | 'health'
   | 'robots_check'
   | 'scrape_now'
@@ -27,6 +28,13 @@ export const SCRAPE_SOURCE_LIST_COLUMN_DEFINITIONS: readonly ScrapeSourceListCol
     label: 'Proxy Count',
     sortField: 'proxy_count',
     example: '12,345',
+    skeletonWidth: '3rem',
+  },
+  {
+    id: 'alive_count',
+    label: 'Alive Proxies',
+    sortField: 'alive_count',
+    example: '8,742',
     skeletonWidth: '3rem',
   },
   {

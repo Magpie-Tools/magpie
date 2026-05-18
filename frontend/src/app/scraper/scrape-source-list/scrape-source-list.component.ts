@@ -877,6 +877,8 @@ export class ScrapeSourceListComponent implements OnInit, OnDestroy {
     switch (field) {
       case 'proxy_count':
         return source.proxy_count ?? 0;
+      case 'alive_count':
+        return source.alive_count ?? 0;
       case 'health':
         return this.calculateHealthScore(source);
       case 'url':

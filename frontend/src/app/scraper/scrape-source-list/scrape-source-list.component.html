@@ -183,7 +183,7 @@
                 <td>
                   <p-skeleton width="100%" height="0.85rem"></p-skeleton>
                 </td>
-              } @else if (column.id === 'proxy_count') {
+              } @else if (column.id === 'proxy_count' || column.id === 'alive_count') {
                 <td class="text-center">
                   <p-skeleton width="3rem" height="0.85rem" class="inline-block"></p-skeleton>
                 </td>
@@ -236,6 +236,11 @@
             @case ('proxy_count') {
               <td class="text-center column-proxy_count">
                 {{ source.proxy_count | number }}
+              </td>
+            }
+            @case ('alive_count') {
+              <td class="text-center column-alive_count">
+                {{ source.alive_count | number }}
               </td>
             }
             @case ('health') {
