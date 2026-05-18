@@ -65,6 +65,20 @@ func GetUsersThatDontHaveJudges() []domain.User {
 	return users
 }
 
+func normalizeDashboardCountry(country string) string {
+	trimmed := strings.TrimSpace(country)
+	if trimmed == "" {
+		return "Unknown"
+	}
+
+	switch strings.ToLower(trimmed) {
+	case "n/a", "unknown", "unk":
+		return "Unknown"
+	default:
+		return trimmed
+	}
+}
+
 // AddUserJudgesRelation cannot normally fail because of to many parameters because
 // users start with the default judges anyway
 func AddUserJudgesRelation(users []domain.User, judges []*domain.JudgeWithRegex) error {
@@ -356,7 +370,7 @@ func GetDashboardInfo(userid uint) dto.DashboardInfo {
 
 	var countries []countryCount
 
-	const countryExpr = "COALESCE(NULLIF(proxies.country, ''), 'Unknown')"
+	const countryExpr = "CASE WHEN proxies.country IS NULL OR TRIM(proxies.country) = '' OR LOWER(TRIM(proxies.country)) IN ('n/a', 'unknown', 'unk') THEN 'Unknown' ELSE TRIM(proxies.country) END"
 
 	DB.Model(&domain.Proxy{}).
 		Select(countryExpr+" AS country, COUNT(*) AS count").
@@ -366,10 +380,7 @@ func GetDashboardInfo(userid uint) dto.DashboardInfo {
 		Scan(&countries)
 
 	for _, row := range countries {
-		country := row.Country
-		if country == "" || country == "N/A" {
-			country = "Unknown"
-		}
+		country := normalizeDashboardCountry(row.Country)
 		info.CountryBreakdown = append(info.CountryBreakdown, struct {
 			Country string `json:"country"`
 			Count   uint   `json:"count"`
