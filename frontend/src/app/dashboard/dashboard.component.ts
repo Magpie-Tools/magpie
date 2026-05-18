@@ -289,14 +289,16 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   private updateCountryBreakdown(breakdown: CountryBreakdownEntry[] = []): void {
-    const aggregated = breakdown
-      .filter((entry) => entry.count > 0)
-      .map((entry) => ({
-        name: entry.country?.trim() || 'Unknown',
-        value: entry.count
-      }));
+    const aggregated = new Map<string, number>();
 
-    const sorted = aggregated
+    breakdown
+      .filter((entry) => entry.count > 0)
+      .forEach((entry) => {
+        const name = this.normalizeCountryBreakdownName(entry.country);
+        aggregated.set(name, (aggregated.get(name) ?? 0) + entry.count);
+      });
+
+    const sorted = Array.from(aggregated, ([name, value]) => ({name, value}))
       .filter((entry) => entry.value > 0)
       .sort((a, b) => b.value - a.value);
     const total = sorted.reduce((sum, entry) => sum + entry.value, 0);
@@ -306,6 +308,22 @@ export class DashboardComponent implements OnInit, OnDestroy {
       value: entry.value,
       percentage: total > 0 ? ((entry.value / total) * 100).toFixed(1) : '0.0'
     })));
+  }
+
+  private normalizeCountryBreakdownName(country: string | undefined | null): string {
+    const trimmed = country?.trim() ?? '';
+    if (!trimmed) {
+      return 'Unknown';
+    }
+
+    switch (trimmed.toLowerCase()) {
+      case 'n/a':
+      case 'unknown':
+      case 'unk':
+        return 'Unknown';
+      default:
+        return trimmed;
+    }
   }
 
   private updateProxyHistory(proxies: RecentProxyCheck[]): void {
