@@ -483,10 +483,16 @@ func ensureProxyTimelineRetentionSchema(db *gorm.DB) error {
 
 	stmts := make([]string, 0, 2)
 	if db.Migrator().HasTable(&domain.ProxySnapshot{}) {
-		stmts = append(stmts, `CREATE INDEX IF NOT EXISTS idx_proxy_snapshots_created_at_id ON proxy_snapshots (created_at, id)`)
+		stmts = append(stmts,
+			`CREATE INDEX IF NOT EXISTS idx_proxy_snapshots_created_at_id ON proxy_snapshots (created_at, id)`,
+			`CREATE INDEX IF NOT EXISTS idx_proxy_snapshots_user_metric_created_id ON proxy_snapshots (user_id, metric, created_at DESC, id DESC)`,
+		)
 	}
 	if db.Migrator().HasTable(&domain.ProxyHistory{}) {
-		stmts = append(stmts, `CREATE INDEX IF NOT EXISTS idx_proxy_histories_created_at_id ON proxy_histories (created_at, id)`)
+		stmts = append(stmts,
+			`CREATE INDEX IF NOT EXISTS idx_proxy_histories_created_at_id ON proxy_histories (created_at, id)`,
+			`CREATE INDEX IF NOT EXISTS idx_proxy_histories_user_created_id ON proxy_histories (user_id, created_at DESC, id DESC)`,
+		)
 	}
 
 	for _, stmt := range stmts {

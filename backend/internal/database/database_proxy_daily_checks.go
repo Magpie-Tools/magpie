@@ -2,10 +2,12 @@ package database
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"magpie/internal/domain"
 
+	"github.com/charmbracelet/log"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -22,6 +24,8 @@ type dailyCheckAggregationKey struct {
 
 const proxyDailyBackfillAdvisoryLockBase int64 = 941_843_229_900
 const proxyDailyBackfillBatchSize = 5000
+
+var proxyDailyBackfillInFlight sync.Map
 
 func incrementProxyDailyChecks(tx *gorm.DB, statistics []domain.ProxyStatistic) error {
 	if tx == nil || len(statistics) == 0 {
@@ -80,11 +84,27 @@ func loadDashboardCheckCounts(userID uint, weekAgo time.Time) (dashboardCheckCou
 		return dashboardCheckCounts{}, nil
 	}
 
-	if err := ensureProxyDailyChecksBackfilled(userID); err != nil {
-		return dashboardCheckCounts{}, err
-	}
+	queueProxyDailyChecksBackfill(userID)
 
 	return queryDashboardCheckCountsFromDaily(userID, weekAgo)
+}
+
+func queueProxyDailyChecksBackfill(userID uint) {
+	if DB == nil || userID == 0 {
+		return
+	}
+
+	if _, loaded := proxyDailyBackfillInFlight.LoadOrStore(userID, struct{}{}); loaded {
+		return
+	}
+
+	go func() {
+		defer proxyDailyBackfillInFlight.Delete(userID)
+
+		if err := ensureProxyDailyChecksBackfilled(userID); err != nil {
+			log.Warn("dashboard: async daily check backfill failed", "user_id", userID, "error", err)
+		}
+	}()
 }
 
 func ensureProxyDailyChecksBackfilled(userID uint) error {
