@@ -61,7 +61,7 @@
   <div class="account-section">
     <p-button type="button" class="person w-full flex items-center justify-center" icon="pi pi-user" (click)="accountPopover.toggle($event)"></p-button>
     <p-popover #accountPopover>
-      <div class="flex flex-col w-[15rem] gap-2 p-2">
+      <div class="flex flex-col w-60 gap-2 p-2">
         <button pButton type="button" class="w-full flex items-center gap-2 justify-start" (click)="user.logoutAndRedirect()">
           <i class="pi pi-sign-out"></i><span>Logout</span>
         </button>
