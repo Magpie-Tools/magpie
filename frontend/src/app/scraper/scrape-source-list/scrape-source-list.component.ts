@@ -91,6 +91,7 @@ type PageScrollTarget = 'top' | 'bottom';
 export class ScrapeSourceListComponent implements OnInit, OnDestroy {
   private static nextPageJumpInputId = 0;
   private readonly pageScrollTargetStorageKey = 'magpie-scrape-source-list-page-scroll-target';
+  private readonly pageSizeStorageKey = 'magpie-scrape-source-list-page-size';
 
   @Output() showAddScrapeSourceMessage = new EventEmitter<boolean>();
   @ViewChild('filterToggleAnchor') private filterToggleAnchor?: ElementRef<HTMLElement>;
@@ -158,6 +159,10 @@ export class ScrapeSourceListComponent implements OnInit, OnDestroy {
     const storedPageScrollTarget = this.getStoredPageScrollTarget();
     if (storedPageScrollTarget) {
       this.pageScrollTarget = storedPageScrollTarget;
+    }
+    const storedPageSize = this.getStoredPageSize();
+    if (storedPageSize !== null) {
+      this.pageSize = storedPageSize;
     }
 
     this.columnPickerColumns = this.resolveColumnPickerColumns();
@@ -278,19 +283,25 @@ export class ScrapeSourceListComponent implements OnInit, OnDestroy {
   }
 
   onLazyLoad(event: TableLazyLoadEvent) {
-    const newPage = Math.floor((event.first ?? 0) / (event.rows ?? this.pageSize));
-    const newPageSize = event.rows ?? this.pageSize;
+    const requestedRows = event.rows ?? this.pageSize;
+    const newPageSize = Number.isFinite(requestedRows) && requestedRows > 0 ? requestedRows : this.pageSize;
+    const newPage = Math.floor((event.first ?? 0) / newPageSize);
     const nextSortOrder = event.sortOrder && event.sortOrder !== 0 ? event.sortOrder : null;
     const nextSortField = nextSortOrder ? this.resolveSortField(event.sortField) : null;
 
     const sortChanged = nextSortField !== this.sortField || nextSortOrder !== this.sortOrder;
-    const shouldFetch = newPage !== this.page || newPageSize !== this.pageSize;
+    const pageSizeChanged = newPageSize !== this.pageSize;
+    const shouldFetch = newPage !== this.page || pageSizeChanged;
 
     this.page = newPage;
     this.pageJumpValue = newPage + 1;
     this.pageSize = newPageSize;
     this.sortField = nextSortField;
     this.sortOrder = nextSortOrder;
+
+    if (pageSizeChanged) {
+      this.persistPageSize(newPageSize);
+    }
 
     if (sortChanged) {
       this.scrapeSources = this.applySort([...this.scrapeSources], this.sortField, this.sortOrder);
@@ -623,6 +634,44 @@ export class ScrapeSourceListComponent implements OnInit, OnDestroy {
       }
 
       storage.setItem(this.pageScrollTargetStorageKey, target);
+    } catch {
+      // ignore persistence errors (private browsing, SSR)
+    }
+  }
+
+  private getStoredPageSize(): number | null {
+    try {
+      const storage = this.getStorage();
+      if (!storage) {
+        return null;
+      }
+      const raw = storage.getItem(this.pageSizeStorageKey);
+      if (!raw) {
+        return null;
+      }
+      const parsed = Number(raw);
+      if (!Number.isFinite(parsed) || parsed <= 0) {
+        return null;
+      }
+      if (!this.rowsPerPageOptions.includes(parsed)) {
+        return null;
+      }
+      return parsed;
+    } catch {
+      return null;
+    }
+  }
+
+  private persistPageSize(size: number): void {
+    if (!Number.isFinite(size) || size <= 0) {
+      return;
+    }
+    try {
+      const storage = this.getStorage();
+      if (!storage) {
+        return;
+      }
+      storage.setItem(this.pageSizeStorageKey, size.toString());
     } catch {
       // ignore persistence errors (private browsing, SSR)
     }

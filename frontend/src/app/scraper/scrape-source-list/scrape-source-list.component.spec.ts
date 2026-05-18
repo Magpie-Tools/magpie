@@ -8,10 +8,17 @@ import {SettingsService} from '../../services/settings.service';
 import {UserService} from '../../services/authorization/user.service';
 
 describe('ScrapeSourceListComponent', () => {
+  const pageSizeStorageKey = 'magpie-scrape-source-list-page-size';
   let component: ScrapeSourceListComponent;
   let fixture: ComponentFixture<ScrapeSourceListComponent>;
 
+  afterEach(() => {
+    window.localStorage.removeItem(pageSizeStorageKey);
+  });
+
   beforeEach(async () => {
+    window.localStorage.removeItem(pageSizeStorageKey);
+
     const httpServiceStub = {
       getRespectRobotsSetting: jasmine.createSpy('getRespectRobotsSetting').and.returnValue(of({respect_robots_txt: false})),
       getScrapingSourcesCount: jasmine.createSpy('getScrapingSourcesCount').and.returnValue(of(0)),
@@ -48,5 +55,13 @@ describe('ScrapeSourceListComponent', () => {
 
   it('should create', () => {
     expect(component).toBeTruthy();
+  });
+
+  it('persists table row count changes', () => {
+    component.pageSize = 40;
+
+    component.onLazyLoad({first: 0, rows: 60});
+
+    expect(window.localStorage.getItem(pageSizeStorageKey)).toBe('60');
   });
 });
