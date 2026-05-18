@@ -57,6 +57,7 @@ var validProxyListColumns = map[string]struct{}{
 var validScrapeSourceListColumns = map[string]struct{}{
 	"url":          {},
 	"proxy_count":  {},
+	"alive_count":  {},
 	"health":       {},
 	"robots_check": {},
 	"scrape_now":   {},
