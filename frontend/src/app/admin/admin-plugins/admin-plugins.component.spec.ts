@@ -43,12 +43,14 @@ const defaultSettings: GlobalSettings = {
     max_per_user: 0,
     exclude_admins: true
   },
-  geolite: {
-    enabled: true,
-    api_key: '',
-    auto_update: false,
-    update_timer: timer(),
-    last_updated_at: null
+  plugins: {
+    geolite: {
+      enabled: true,
+      api_key: '',
+      auto_update: false,
+      update_timer: timer(),
+      last_updated_at: null
+    }
   },
   blacklist_timer: timer(),
   blacklist_sources: [],

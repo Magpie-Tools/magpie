@@ -38,7 +38,7 @@ export class PluginGeoliteComponent implements OnInit, OnDestroy {
   secondsList = Array.from({ length: 60 }, (_, i) => ({ label: `${i} Seconds`, value: i }));
   form: FormGroup;
   lastUpdatedLabel = 'Never';
-  pluginEnabled = signal(true);
+  pluginEnabled = signal(false);
   private destroy$ = new Subject<void>();
 
   constructor(
@@ -48,7 +48,7 @@ export class PluginGeoliteComponent implements OnInit, OnDestroy {
     private cdr: ChangeDetectorRef
   ) {
     this.form = this.fb.group({
-      enabled: [true],
+      enabled: [false],
       api_key: [''],
       auto_update: [false],
       update_timer: this.fb.group({
@@ -93,17 +93,19 @@ export class PluginGeoliteComponent implements OnInit, OnDestroy {
     const raw = this.form.getRawValue();
     const timer = raw.update_timer ?? {};
     const payload = {
-      geolite: {
-        enabled: !!raw.enabled,
-        api_key: typeof raw.api_key === 'string' ? raw.api_key.trim() : '',
-        auto_update: !!raw.auto_update,
-        update_timer: {
-          days: timer.days ?? 1,
-          hours: timer.hours ?? 0,
-          minutes: timer.minutes ?? 0,
-          seconds: timer.seconds ?? 0
-        },
-        last_updated_at: raw.last_updated_at ?? null
+      plugins: {
+        geolite: {
+          enabled: !!raw.enabled,
+          api_key: typeof raw.api_key === 'string' ? raw.api_key.trim() : '',
+          auto_update: !!raw.auto_update,
+          update_timer: {
+            days: timer.days ?? 1,
+            hours: timer.hours ?? 0,
+            minutes: timer.minutes ?? 0,
+            seconds: timer.seconds ?? 0
+          },
+          last_updated_at: raw.last_updated_at ?? null
+        }
       }
     };
 
@@ -125,9 +127,9 @@ export class PluginGeoliteComponent implements OnInit, OnDestroy {
   }
 
   private updateFormWithSettings(settings: GlobalSettings): void {
-    const geolite = settings.geolite;
+    const geolite = settings.plugins.geolite;
     this.form.patchValue({
-      enabled: geolite?.enabled ?? true,
+      enabled: geolite?.enabled ?? false,
       api_key: geolite?.api_key ?? '',
       auto_update: geolite?.auto_update ?? false,
       update_timer: {

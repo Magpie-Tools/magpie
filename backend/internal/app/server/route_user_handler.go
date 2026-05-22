@@ -379,9 +379,12 @@ func requeueAllScrapeSources(w http.ResponseWriter, r *http.Request) {
 }
 
 func shouldTriggerGeoLiteUpdateOnSave(previousCfg, newConfig config.Config) bool {
-	previousKey := strings.TrimSpace(previousCfg.GeoLite.APIKey)
-	newKey := strings.TrimSpace(newConfig.GeoLite.APIKey)
-	return newKey != "" && newKey != previousKey
+	if !newConfig.Plugins.GeoLite.Enabled {
+		return false
+	}
+	previousKey := strings.TrimSpace(previousCfg.Plugins.GeoLite.APIKey)
+	newKey := strings.TrimSpace(newConfig.Plugins.GeoLite.APIKey)
+	return newKey != "" && (newKey != previousKey || !previousCfg.Plugins.GeoLite.Enabled)
 }
 
 func getUserSettings(w http.ResponseWriter, r *http.Request) {

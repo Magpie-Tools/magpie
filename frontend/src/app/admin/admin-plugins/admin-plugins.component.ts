@@ -32,7 +32,7 @@ export class AdminPluginsComponent implements OnInit, OnDestroy {
 
   settings = signal<GlobalSettings | undefined>(undefined);
   pluginStates = computed(() => ({
-    geolite: this.settings()?.geolite?.enabled ?? true
+    geolite: this.settings()?.plugins?.geolite?.enabled ?? false
   }));
   pendingPluginIds = signal<ReadonlySet<string>>(new Set());
   private destroy$ = new Subject<void>();
@@ -83,7 +83,7 @@ export class AdminPluginsComponent implements OnInit, OnDestroy {
     this.setPluginEnabled(pluginId, nextEnabled);
     this.setPluginPending(pluginId, true);
 
-    this.settingsService.saveGlobalSettings({ geolite: { enabled: nextEnabled } }).subscribe({
+    this.settingsService.saveGlobalSettings({ plugins: { geolite: { enabled: nextEnabled } } }).subscribe({
       next: () => {
         this.setPluginPending(pluginId, false);
       },
@@ -105,9 +105,12 @@ export class AdminPluginsComponent implements OnInit, OnDestroy {
 
     this.settings.set({
       ...current,
-      geolite: {
-        ...current.geolite,
-        enabled
+      plugins: {
+        ...current.plugins,
+        geolite: {
+          ...current.plugins.geolite,
+          enabled
+        }
       }
     });
   }

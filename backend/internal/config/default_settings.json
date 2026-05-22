@@ -85,14 +85,17 @@
     }
   },
 
-  "geolite": {
-    "api_key": "",
-    "auto_update": false,
-    "update_timer": {
-      "days": 1,
-      "hours": 0,
-      "minutes": 0,
-      "seconds": 0
+  "plugins": {
+    "geolite": {
+      "enabled": false,
+      "api_key": "",
+      "auto_update": false,
+      "update_timer": {
+        "days": 1,
+        "hours": 0,
+        "minutes": 0,
+        "seconds": 0
+      }
     }
   },
 

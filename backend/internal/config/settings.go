@@ -60,12 +60,7 @@ type Config struct {
 		ProxyGeoRefreshTimer Timer `json:"proxy_geo_refresh_timer"`
 	} `json:"runtime"`
 
-	GeoLite struct {
-		APIKey        string `json:"api_key"`
-		AutoUpdate    bool   `json:"auto_update"`
-		UpdateTimer   Timer  `json:"update_timer"`
-		LastUpdatedAt string `json:"last_updated_at,omitempty"`
-	} `json:"geolite"`
+	Plugins PluginConfig `json:"plugins"`
 
 	BlacklistSources []string `json:"blacklist_sources"`
 	BlacklistTimer   Timer    `json:"blacklist_timer"`
@@ -89,6 +84,18 @@ type ProxyLimitConfig struct {
 	Enabled       bool   `json:"enabled"`
 	MaxPerUser    uint32 `json:"max_per_user"`
 	ExcludeAdmins bool   `json:"exclude_admins"`
+}
+
+type PluginConfig struct {
+	GeoLite GeoLitePluginConfig `json:"geolite"`
+}
+
+type GeoLitePluginConfig struct {
+	Enabled       bool   `json:"enabled"`
+	APIKey        string `json:"api_key"`
+	AutoUpdate    bool   `json:"auto_update"`
+	UpdateTimer   Timer  `json:"update_timer"`
+	LastUpdatedAt string `json:"last_updated_at,omitempty"`
 }
 
 const settingsFilePath = "data/settings.json"
@@ -186,7 +193,7 @@ func UpdateGeoLiteConfig(updater func(cfg *Config)) error {
 
 func MarkGeoLiteUpdated(ts time.Time) error {
 	return UpdateGeoLiteConfig(func(cfg *Config) {
-		cfg.GeoLite.LastUpdatedAt = ts.UTC().Format(time.RFC3339)
+		cfg.Plugins.GeoLite.LastUpdatedAt = ts.UTC().Format(time.RFC3339)
 	})
 }
 
@@ -330,10 +337,38 @@ func clampThreadCountWithBounds(value uint32, min uint32, max uint32) uint32 {
 }
 
 func applyLegacyDefaults(raw []byte, cfg *Config) {
+	type rawGeoLitePluginConfig struct {
+		Enabled       *bool  `json:"enabled"`
+		APIKey        string `json:"api_key"`
+		AutoUpdate    bool   `json:"auto_update"`
+		UpdateTimer   Timer  `json:"update_timer"`
+		LastUpdatedAt string `json:"last_updated_at,omitempty"`
+	}
+	normalizeGeoLite := func(rawCfg *rawGeoLitePluginConfig, defaultEnabled bool) (GeoLitePluginConfig, bool) {
+		if rawCfg == nil {
+			return GeoLitePluginConfig{}, false
+		}
+		enabled := defaultEnabled
+		if rawCfg.Enabled != nil {
+			enabled = *rawCfg.Enabled
+		}
+		return GeoLitePluginConfig{
+			Enabled:       enabled,
+			APIKey:        rawCfg.APIKey,
+			AutoUpdate:    rawCfg.AutoUpdate,
+			UpdateTimer:   rawCfg.UpdateTimer,
+			LastUpdatedAt: rawCfg.LastUpdatedAt,
+		}, true
+	}
+
 	var partial struct {
 		Checker struct {
 			SaveResponses *bool `json:"save_responses"`
 		} `json:"checker"`
+		Plugins struct {
+			GeoLite *rawGeoLitePluginConfig `json:"geolite"`
+		} `json:"plugins"`
+		LegacyGeoLite *rawGeoLitePluginConfig `json:"geolite"`
 	}
 
 	if err := json.Unmarshal(raw, &partial); err != nil {
@@ -342,6 +377,12 @@ func applyLegacyDefaults(raw []byte, cfg *Config) {
 
 	if partial.Checker.SaveResponses == nil {
 		cfg.Checker.SaveResponses = true
+	}
+	if geolite, ok := normalizeGeoLite(partial.LegacyGeoLite, true); partial.Plugins.GeoLite == nil && ok {
+		cfg.Plugins.GeoLite = geolite
+	}
+	if geolite, ok := normalizeGeoLite(partial.Plugins.GeoLite, false); ok {
+		cfg.Plugins.GeoLite = geolite
 	}
 }
 

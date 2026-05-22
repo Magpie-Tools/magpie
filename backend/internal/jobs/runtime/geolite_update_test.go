@@ -26,8 +26,9 @@ func TestTriggerGeoLiteUpdate_RunsProxyGeoRefreshAfterSuccessfulUpdate(t *testin
 	})
 
 	cfg := originalCfg
-	cfg.GeoLite.APIKey = "test-key"
-	cfg.GeoLite.AutoUpdate = true
+	cfg.Plugins.GeoLite.Enabled = true
+	cfg.Plugins.GeoLite.APIKey = "test-key"
+	cfg.Plugins.GeoLite.AutoUpdate = true
 	if err := config.SetConfig(cfg); err != nil {
 		t.Fatalf("set config: %v", err)
 	}
@@ -57,6 +58,39 @@ func TestTriggerGeoLiteUpdate_RunsProxyGeoRefreshAfterSuccessfulUpdate(t *testin
 	}
 }
 
+func TestTriggerGeoLiteUpdate_DoesNotRunWhenDisabled(t *testing.T) {
+	withTempRuntimeWorkingDir(t)
+
+	originalCfg := config.GetConfig()
+	originalUpdate := updateGeoLiteDatabases
+	t.Cleanup(func() {
+		updateGeoLiteDatabases = originalUpdate
+		if err := config.SetConfig(originalCfg); err != nil {
+			t.Errorf("restore config: %v", err)
+		}
+	})
+
+	cfg := originalCfg
+	cfg.Plugins.GeoLite.Enabled = false
+	cfg.Plugins.GeoLite.APIKey = "test-key"
+	cfg.Plugins.GeoLite.AutoUpdate = true
+	if err := config.SetConfig(cfg); err != nil {
+		t.Fatalf("set config: %v", err)
+	}
+
+	updateCalled := false
+	updateGeoLiteDatabases = func(context.Context) (bool, error) {
+		updateCalled = true
+		return true, nil
+	}
+
+	triggerGeoLiteUpdate(context.Background(), "config-save", true)
+
+	if updateCalled {
+		t.Fatal("expected GeoLite updater not to run when disabled")
+	}
+}
+
 func TestTriggerGeoLiteUpdate_DoesNotRunProxyGeoRefreshWhenUpdateFails(t *testing.T) {
 	withTempRuntimeWorkingDir(t)
 
@@ -72,8 +106,9 @@ func TestTriggerGeoLiteUpdate_DoesNotRunProxyGeoRefreshWhenUpdateFails(t *testin
 	})
 
 	cfg := originalCfg
-	cfg.GeoLite.APIKey = "test-key"
-	cfg.GeoLite.AutoUpdate = true
+	cfg.Plugins.GeoLite.Enabled = true
+	cfg.Plugins.GeoLite.APIKey = "test-key"
+	cfg.Plugins.GeoLite.AutoUpdate = true
 	if err := config.SetConfig(cfg); err != nil {
 		t.Fatalf("set config: %v", err)
 	}

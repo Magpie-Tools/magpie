@@ -108,13 +108,18 @@ func RunGeoLiteUpdate(ctx context.Context, reason string, force bool) {
 
 func triggerGeoLiteUpdate(ctx context.Context, reason string, force bool) {
 	cfg := config.GetConfig()
-	apiKey := strings.TrimSpace(cfg.GeoLite.APIKey)
+	if !cfg.Plugins.GeoLite.Enabled {
+		log.Debug("GeoLite update skipped: plugin disabled", "reason", reason)
+		return
+	}
+
+	apiKey := strings.TrimSpace(cfg.Plugins.GeoLite.APIKey)
 	if apiKey == "" {
 		log.Debug("GeoLite update skipped: API key missing", "reason", reason)
 		return
 	}
 
-	if !force && !cfg.GeoLite.AutoUpdate {
+	if !force && !cfg.Plugins.GeoLite.AutoUpdate {
 		log.Debug("GeoLite update skipped: auto update disabled", "reason", reason)
 		return
 	}

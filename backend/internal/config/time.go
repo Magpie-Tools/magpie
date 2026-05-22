@@ -257,7 +257,7 @@ func setGeoLiteUpdateInterval(interval time.Duration) {
 }
 
 func calculateGeoLiteUpdateInterval(cfg Config) time.Duration {
-	timer := cfg.GeoLite.UpdateTimer
+	timer := cfg.Plugins.GeoLite.UpdateTimer
 	if timer.Days == 0 && timer.Hours == 0 && timer.Minutes == 0 && timer.Seconds == 0 {
 		return defaultGeoLiteUpdateInterval
 	}

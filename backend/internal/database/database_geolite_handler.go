@@ -5,7 +5,6 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
-	"magpie/internal/domain"
 	"net"
 	"os"
 	"path/filepath"
@@ -19,6 +18,9 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/oschwald/geoip2-golang"
+
+	"magpie/internal/config"
+	"magpie/internal/domain"
 )
 
 //go:embed GeoLite2-ASN.mmdb
@@ -152,6 +154,10 @@ func ReloadGeoLiteFromDisk() error {
 }
 
 func GeoLiteAvailable() bool {
+	if !config.GetConfig().Plugins.GeoLite.Enabled {
+		return false
+	}
+
 	geoLiteMu.RLock()
 	defer geoLiteMu.RUnlock()
 	return countryDB != nil && asnDB != nil
@@ -216,6 +222,9 @@ func EnrichProxiesWithCountryAndType(proxies *[]domain.Proxy) []residentialOverr
 	if proxies == nil || len(*proxies) == 0 {
 		return nil
 	}
+	if !config.GetConfig().Plugins.GeoLite.Enabled {
+		return nil
+	}
 
 	workerCount := runtime.NumCPU() * 4
 	if workerCount > maxEnrichmentWorkers {
@@ -267,6 +276,9 @@ func EnrichProxiesWithCountryAndType(proxies *[]domain.Proxy) []residentialOverr
 func determineProxyTypeByASN(ipAddress string) (string, bool) {
 	ip := net.ParseIP(ipAddress)
 	if ip == nil {
+		return "unknown", false
+	}
+	if !config.GetConfig().Plugins.GeoLite.Enabled {
 		return "unknown", false
 	}
 
@@ -435,6 +447,9 @@ func GetCountryCode(ipAddress string) string {
 	if ip == nil {
 		return "N/A"
 	}
+	if !config.GetConfig().Plugins.GeoLite.Enabled {
+		return "N/A"
+	}
 
 	geoLiteMu.RLock()
 	defer geoLiteMu.RUnlock()
@@ -461,6 +476,9 @@ func GetCountryCode(ipAddress string) string {
 func DetermineProxyType(ipAddress string) string {
 	ip := net.ParseIP(ipAddress)
 	if ip == nil {
+		return "unknown"
+	}
+	if !config.GetConfig().Plugins.GeoLite.Enabled {
 		return "unknown"
 	}
 

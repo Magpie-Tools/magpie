@@ -418,25 +418,26 @@ export class SettingsService {
       )
     );
 
-    /* ---------- 6. GeoLite ---------- */
-    const geoliteForm = formData.geolite ?? {};
+    /* ---------- 6. plugins ---------- */
+    const geoliteForm = formData.plugins?.geolite ?? formData.geolite ?? {};
     const geoliteTimer = geoliteForm.update_timer ?? {};
 
-    const geolite: GlobalSettings['geolite'] = {
-      enabled: geoliteForm.enabled ?? current?.geolite?.enabled ?? true,
-      api_key: geoliteForm.api_key ?? current?.geolite?.api_key ?? '',
-      auto_update: geoliteForm.auto_update ?? current?.geolite?.auto_update ?? false,
+    const geolite: GlobalSettings['plugins']['geolite'] = {
+      enabled: geoliteForm.enabled ?? current?.plugins?.geolite?.enabled ?? false,
+      api_key: geoliteForm.api_key ?? current?.plugins?.geolite?.api_key ?? '',
+      auto_update: geoliteForm.auto_update ?? current?.plugins?.geolite?.auto_update ?? false,
       update_timer: {
-        days: geoliteTimer?.days ?? current?.geolite?.update_timer?.days ?? 1,
-        hours: geoliteTimer?.hours ?? current?.geolite?.update_timer?.hours ?? 0,
-        minutes: geoliteTimer?.minutes ?? current?.geolite?.update_timer?.minutes ?? 0,
-        seconds: geoliteTimer?.seconds ?? current?.geolite?.update_timer?.seconds ?? 0
+        days: geoliteTimer?.days ?? current?.plugins?.geolite?.update_timer?.days ?? 1,
+        hours: geoliteTimer?.hours ?? current?.plugins?.geolite?.update_timer?.hours ?? 0,
+        minutes: geoliteTimer?.minutes ?? current?.plugins?.geolite?.update_timer?.minutes ?? 0,
+        seconds: geoliteTimer?.seconds ?? current?.plugins?.geolite?.update_timer?.seconds ?? 0
       },
-      last_updated_at: geoliteForm.last_updated_at ?? current?.geolite?.last_updated_at ?? null
+      last_updated_at: geoliteForm.last_updated_at ?? current?.plugins?.geolite?.last_updated_at ?? null
     };
+    const plugins: GlobalSettings['plugins'] = { geolite };
 
     /* ---------- final shape ---------- */
-    return { protocols, checker, scraper, proxy_limits, geolite, blacklist_sources, blacklist_timer, website_blacklist };
+    return { protocols, checker, scraper, proxy_limits, plugins, blacklist_sources, blacklist_timer, website_blacklist };
   }
 
 }

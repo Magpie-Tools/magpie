@@ -51,7 +51,7 @@ var downloadTargets = []downloadTarget{
 func UpdateDatabases(ctx context.Context) (bool, error) {
 	result, err, _ := updateGroup.Do("update", func() (interface{}, error) {
 		cfg := config.GetConfig()
-		apiKey := strings.TrimSpace(cfg.GeoLite.APIKey)
+		apiKey := strings.TrimSpace(cfg.Plugins.GeoLite.APIKey)
 		if apiKey == "" {
 			return false, ErrNoAPIKey
 		}
