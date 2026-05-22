@@ -11,7 +11,10 @@
       @for (plugin of plugins; track plugin.id) {
         <article
           class="plugin-tile"
-          [class.plugin-tile-disabled]="!isPluginEnabled(plugin.id)">
+          [class.plugin-tile-disabled]="!isPluginEnabled(plugin.id)"
+          [class.plugin-tile-incomplete]="isPluginIncomplete(plugin.id)"
+          [pTooltip]="getPluginIncompleteReason(plugin.id) ?? undefined"
+          tooltipPosition="top">
           <a
             class="plugin-main"
             [routerLink]="plugin.route"

@@ -86,6 +86,17 @@
     justify-self: end;
   }
 
+  .plugin-tile-incomplete {
+    border-color: rgba(250, 204, 21, 0.82);
+    box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.16);
+
+    &:hover,
+    &:focus-within {
+      border-color: rgba(250, 204, 21, 0.95);
+      box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.24), 0 16px 32px rgba(8, 12, 16, 0.38);
+    }
+  }
+
   .plugin-tile-disabled {
     .plugin-logo {
       filter: grayscale(1) saturate(0.1);

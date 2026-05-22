@@ -86,4 +86,24 @@ describe('AdminPluginsComponent', () => {
   it('should create', () => {
     expect(component).toBeTruthy();
   });
+
+  it('warns when GeoLite is enabled without a MaxMind license key', () => {
+    expect(component.isPluginIncomplete('geolite')).toBeTrue();
+    expect(component.getPluginIncompleteReason('geolite')).toBe('GeoLite is enabled but missing a MaxMind license key.');
+  });
+
+  it('does not warn when GeoLite has its required configuration', () => {
+    component.settings.set({
+      ...defaultSettings,
+      plugins: {
+        geolite: {
+          ...defaultSettings.plugins.geolite,
+          api_key: 'license-key'
+        }
+      }
+    });
+
+    expect(component.isPluginIncomplete('geolite')).toBeFalse();
+    expect(component.getPluginIncompleteReason('geolite')).toBeNull();
+  });
 });

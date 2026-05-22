@@ -7,6 +7,7 @@ import {Subject} from 'rxjs';
 import {filter, takeUntil} from 'rxjs/operators';
 import {NotificationService} from '../../services/notification-service.service';
 import {ToggleSwitchChangeEvent, ToggleSwitchModule} from 'primeng/toggleswitch';
+import {TooltipModule} from 'primeng/tooltip';
 
 @Component({
   selector: 'app-admin-plugins',
@@ -14,7 +15,8 @@ import {ToggleSwitchChangeEvent, ToggleSwitchModule} from 'primeng/toggleswitch'
   imports: [
     RouterLink,
     FormsModule,
-    ToggleSwitchModule
+    ToggleSwitchModule,
+    TooltipModule
   ],
   templateUrl: './admin-plugins.component.html',
   styleUrl: './admin-plugins.component.scss'
@@ -67,6 +69,27 @@ export class AdminPluginsComponent implements OnInit, OnDestroy {
 
   isPluginTogglePending(pluginId: string): boolean {
     return this.pendingPluginIds().has(pluginId);
+  }
+
+  isPluginIncomplete(pluginId: string): boolean {
+    return !!this.getPluginIncompleteReason(pluginId);
+  }
+
+  getPluginIncompleteReason(pluginId: string): string | null {
+    if (pluginId !== 'geolite') {
+      return null;
+    }
+
+    const geolite = this.settings()?.plugins?.geolite;
+    if (!geolite?.enabled) {
+      return null;
+    }
+
+    if (!geolite.api_key?.trim()) {
+      return 'GeoLite is enabled but missing a MaxMind license key.';
+    }
+
+    return null;
   }
 
   togglePlugin(pluginId: string, event: ToggleSwitchChangeEvent): void {

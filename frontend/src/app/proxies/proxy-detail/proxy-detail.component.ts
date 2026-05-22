@@ -161,8 +161,8 @@ export class ProxyDetailComponent implements OnInit, OnDestroy {
       {
         label: 'Talos Intelligence',
         url: `https://talosintelligence.com/reputation_center/lookup?search=${encodedIp}`,
-        icon: '',
-        // icon: 'https://talosintelligence.com/favicon.ico',
+        // icon: '',
+        icon: 'https://talosintelligence.com/favicon.ico',
       },
       {
         label: 'AbuseIPDB',
@@ -172,20 +172,20 @@ export class ProxyDetailComponent implements OnInit, OnDestroy {
       {
         label: 'Scamalytics',
         url: `https://scamalytics.com/ip/${encodedIp}`,
-        icon: '',
-        // icon: 'https://scamalytics.com/wp-content/uploads/2016/06/icon_128.png',
+        // icon: '',
+        icon: 'https://scamalytics.com/wp-content/uploads/2016/06/icon_128.png',
       },
       {
         label: 'Shodan',
         url: `https://www.shodan.io/host/${encodedIp}`,
-        icon: '',
-        // icon: 'https://www.shodan.io/static/img/favicon-60c1b1cd.png',
+        // icon: '',
+        icon: 'https://www.shodan.io/static/img/favicon-60c1b1cd.png',
       },
       {
         label: 'IPQS',
         url: `https://www.ipqualityscore.com/free-ip-lookup-proxy-vpn-test/lookup/${encodedIp}`,
-        icon: ''
-        // icon: 'https://www.ipqualityscore.com/favicon.ico'
+        // icon: ''
+        icon: 'https://www.ipqualityscore.com/favicon.ico'
       }
     ];
   }
