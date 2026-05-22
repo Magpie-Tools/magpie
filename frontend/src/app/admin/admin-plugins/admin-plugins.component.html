@@ -1,0 +1,47 @@
+<div class="admin-plugins-page text-gray-200">
+  <section class="plugins-panel bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-lg">
+    <header class="panel-header">
+      <h2 class="text-xl font-semibold text-white mb-1">Plugins</h2>
+      <p class="text-sm text-gray-400 max-w-3xl">
+        Select a plugin to manage its settings.
+      </p>
+    </header>
+
+    <div class="plugin-grid mt-6">
+      @for (plugin of plugins; track plugin.id) {
+        <article
+          class="plugin-tile"
+          [class.plugin-tile-disabled]="!isPluginEnabled(plugin.id)">
+          <a
+            class="plugin-main"
+            [routerLink]="plugin.route"
+            [attr.aria-label]="'Open ' + plugin.name + ' settings'">
+            <span class="plugin-logo-shell">
+              <img [src]="plugin.logo" [alt]="plugin.provider + ' logo'" class="plugin-logo"/>
+            </span>
+          </a>
+
+          <div class="plugin-footer">
+            <a
+              class="plugin-name"
+              [routerLink]="plugin.route"
+              [attr.aria-label]="'Open ' + plugin.name + ' settings'">
+              {{ plugin.name }}
+            </a>
+
+            <p-toggleswitch
+              class="plugin-switch"
+              styleClass="plugin-switch-control"
+              [size]="'small'"
+              [ngModel]="isPluginEnabled(plugin.id)"
+              [ngModelOptions]="{standalone: true}"
+              [disabled]="!settings() || isPluginTogglePending(plugin.id)"
+              [ariaLabel]="'Toggle ' + plugin.name"
+              (onChange)="togglePlugin(plugin.id, $event)">
+            </p-toggleswitch>
+          </div>
+        </article>
+      }
+    </div>
+  </section>
+</div>

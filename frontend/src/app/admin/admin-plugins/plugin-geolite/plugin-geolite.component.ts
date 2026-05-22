@@ -1,48 +1,54 @@
-import {Component, OnDestroy, OnInit} from '@angular/core';
+import {ChangeDetectorRef, Component, OnDestroy, OnInit, signal} from '@angular/core';
+import {RouterLink} from '@angular/router';
 import {FormBuilder, FormGroup, ReactiveFormsModule} from '@angular/forms';
-import {SettingsService} from '../../services/settings.service';
-import {GlobalSettings} from '../../models/GlobalSettings';
 import {Subject} from 'rxjs';
 import {filter, takeUntil} from 'rxjs/operators';
 
 import {ButtonModule} from 'primeng/button';
 import {CheckboxModule} from 'primeng/checkbox';
-import {DividerModule} from 'primeng/divider';
 import {InputTextModule} from 'primeng/inputtext';
 import {SelectModule} from 'primeng/select';
-import {NotificationService} from '../../services/notification-service.service';
 import {Message} from 'primeng/message';
+import {ToggleSwitchModule} from 'primeng/toggleswitch';
+
+import {GlobalSettings} from '../../../models/GlobalSettings';
+import {SettingsService} from '../../../services/settings.service';
+import {NotificationService} from '../../../services/notification-service.service';
 
 @Component({
-  selector: 'app-admin-other',
+  selector: 'app-plugin-geolite',
   standalone: true,
   imports: [
+    RouterLink,
     ReactiveFormsModule,
     ButtonModule,
     CheckboxModule,
-    DividerModule,
     InputTextModule,
     SelectModule,
-    Message
+    Message,
+    ToggleSwitchModule
   ],
-  templateUrl: './admin-other.component.html',
-  styleUrl: './admin-other.component.scss'
+  templateUrl: './plugin-geolite.component.html',
+  styleUrl: './plugin-geolite.component.scss'
 })
-export class AdminOtherComponent implements OnInit, OnDestroy {
+export class PluginGeoliteComponent implements OnInit, OnDestroy {
   daysList = Array.from({ length: 31 }, (_, i) => ({ label: `${i} Days`, value: i }));
   hoursList = Array.from({ length: 24 }, (_, i) => ({ label: `${i} Hours`, value: i }));
   minutesList = Array.from({ length: 60 }, (_, i) => ({ label: `${i} Minutes`, value: i }));
   secondsList = Array.from({ length: 60 }, (_, i) => ({ label: `${i} Seconds`, value: i }));
   form: FormGroup;
   lastUpdatedLabel = 'Never';
+  pluginEnabled = signal(true);
   private destroy$ = new Subject<void>();
 
   constructor(
     private fb: FormBuilder,
     private settingsService: SettingsService,
-    private notification: NotificationService
+    private notification: NotificationService,
+    private cdr: ChangeDetectorRef
   ) {
     this.form = this.fb.group({
+      enabled: [true],
       api_key: [''],
       auto_update: [false],
       update_timer: this.fb.group({
@@ -65,9 +71,13 @@ export class AdminOtherComponent implements OnInit, OnDestroy {
 
     this.form.get('auto_update')?.valueChanges
       .pipe(takeUntil(this.destroy$))
-      .subscribe((enabled: boolean) => this.toggleTimerControls(enabled));
+      .subscribe(() => this.syncControlStates());
 
-    this.toggleTimerControls(this.form.get('auto_update')?.value ?? false);
+    this.form.get('enabled')?.valueChanges
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => this.syncControlStates());
+
+    this.syncControlStates();
   }
 
   ngOnDestroy(): void {
@@ -84,6 +94,7 @@ export class AdminOtherComponent implements OnInit, OnDestroy {
     const timer = raw.update_timer ?? {};
     const payload = {
       geolite: {
+        enabled: !!raw.enabled,
         api_key: typeof raw.api_key === 'string' ? raw.api_key.trim() : '',
         auto_update: !!raw.auto_update,
         update_timer: {
@@ -100,6 +111,7 @@ export class AdminOtherComponent implements OnInit, OnDestroy {
       next: (resp) => {
         this.notification.showSuccess(resp.message ?? 'Settings saved');
         this.form.markAsPristine();
+        this.cdr.markForCheck();
       },
       error: (err) => {
         console.error('Error saving GeoLite settings:', err);
@@ -115,33 +127,49 @@ export class AdminOtherComponent implements OnInit, OnDestroy {
   private updateFormWithSettings(settings: GlobalSettings): void {
     const geolite = settings.geolite;
     this.form.patchValue({
+      enabled: geolite?.enabled ?? true,
       api_key: geolite?.api_key ?? '',
       auto_update: geolite?.auto_update ?? false,
       update_timer: {
-        days: geolite?.update_timer.days ?? 1,
-        hours: geolite?.update_timer.hours ?? 0,
-        minutes: geolite?.update_timer.minutes ?? 0,
-        seconds: geolite?.update_timer.seconds ?? 0
+        days: geolite?.update_timer?.days ?? 1,
+        hours: geolite?.update_timer?.hours ?? 0,
+        minutes: geolite?.update_timer?.minutes ?? 0,
+        seconds: geolite?.update_timer?.seconds ?? 0
       },
       last_updated_at: geolite?.last_updated_at ?? null
     }, { emitEvent: false });
 
     this.form.markAsPristine();
     this.lastUpdatedLabel = this.formatTimestamp(geolite?.last_updated_at);
-    this.toggleTimerControls(geolite?.auto_update ?? false);
+    this.syncControlStates();
   }
 
-  private toggleTimerControls(enabled: boolean): void {
+  private syncControlStates(): void {
+    const enabled = !!this.form.get('enabled')?.value;
+    const apiKey = this.form.get('api_key');
+    const autoUpdate = this.form.get('auto_update');
+    this.pluginEnabled.set(enabled);
+
+    if (enabled) {
+      apiKey?.enable({ emitEvent: false });
+      autoUpdate?.enable({ emitEvent: false });
+    } else {
+      apiKey?.disable({ emitEvent: false });
+      autoUpdate?.disable({ emitEvent: false });
+    }
+
     const group = this.updateTimerGroup;
     if (!group) {
       return;
     }
 
-    if (enabled) {
+    if (enabled && autoUpdate?.value) {
       group.enable({ emitEvent: false });
     } else {
       group.disable({ emitEvent: false });
     }
+
+    this.cdr.markForCheck();
   }
 
   private formatTimestamp(timestamp?: string | null): string {

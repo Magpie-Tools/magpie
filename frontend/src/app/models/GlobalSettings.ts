@@ -62,6 +62,7 @@ export interface GlobalSettings {
   };
 
   geolite: {
+    enabled: boolean;
     api_key: string;
     auto_update: boolean;
     update_timer: {

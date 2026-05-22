@@ -1,10 +1,11 @@
-import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { MessageService } from 'primeng/api';
+import {ComponentFixture, TestBed} from '@angular/core/testing';
+import {MessageService} from 'primeng/api';
+import {provideRouter} from '@angular/router';
 import {BehaviorSubject, of} from 'rxjs';
 
-import { AdminOtherComponent } from './admin-other.component';
-import {SettingsService} from '../../services/settings.service';
-import {GlobalSettings} from '../../models/GlobalSettings';
+import {PluginGeoliteComponent} from './plugin-geolite.component';
+import {SettingsService} from '../../../services/settings.service';
+import {GlobalSettings} from '../../../models/GlobalSettings';
 
 const timer = () => ({ days: 0, hours: 0, minutes: 0, seconds: 0 });
 
@@ -43,6 +44,7 @@ const defaultSettings: GlobalSettings = {
     exclude_admins: true
   },
   geolite: {
+    enabled: true,
     api_key: '',
     auto_update: false,
     update_timer: timer(),
@@ -59,21 +61,22 @@ class SettingsServiceStub {
   saveGlobalSettings = jasmine.createSpy('saveGlobalSettings').and.returnValue(of({ message: 'Saved' }));
 }
 
-describe('AdminOtherComponent', () => {
-  let component: AdminOtherComponent;
-  let fixture: ComponentFixture<AdminOtherComponent>;
+describe('PluginGeoliteComponent', () => {
+  let component: PluginGeoliteComponent;
+  let fixture: ComponentFixture<PluginGeoliteComponent>;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [AdminOtherComponent],
+      imports: [PluginGeoliteComponent],
       providers: [
         { provide: SettingsService, useClass: SettingsServiceStub },
+        provideRouter([]),
         MessageService,
       ]
     })
     .compileComponents();
 
-    fixture = TestBed.createComponent(AdminOtherComponent);
+    fixture = TestBed.createComponent(PluginGeoliteComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
   });

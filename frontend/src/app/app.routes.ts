@@ -16,7 +16,8 @@ import {CheckerSettingsComponent} from './checker/settings/checker-settings.comp
 import {RotatingProxiesComponent} from './rotating-proxies/rotating-proxies.component';
 import {AdminCheckerComponent} from './admin/admin-checker/admin-checker.component';
 import {AdminScraperComponent} from './admin/admin-scraper/admin-scraper.component';
-import {AdminOtherComponent} from './admin/admin-other/admin-other.component';
+import {AdminPluginsComponent} from './admin/admin-plugins/admin-plugins.component';
+import {PluginGeoliteComponent} from './admin/admin-plugins/plugin-geolite/plugin-geolite.component';
 import {AdminBlacklistComponent} from './admin/admin-blacklist/admin-blacklist.component';
 import {ScraperComponent} from './scraper/scraper.component';
 import {ScrapeSourceDetailComponent} from './scraper/scrape-source-detail/scrape-source-detail.component';
@@ -35,7 +36,10 @@ export const routes: Routes = [
   {path: 'global/checker', component: AdminCheckerComponent, canActivate: adminGuard},
   {path: 'global/scraper', component: AdminScraperComponent, canActivate: adminGuard},
   {path: 'global/blacklist', component: AdminBlacklistComponent, canActivate: adminGuard},
-  {path: 'global/other', component: AdminOtherComponent, canActivate: adminGuard},
+  {path: 'plugins', component: AdminPluginsComponent, canActivate: adminGuard},
+  {path: 'plugins/geolite', component: PluginGeoliteComponent, canActivate: adminGuard},
+  {path: 'global/plugins', redirectTo: 'plugins', pathMatch: 'full'},
+  {path: 'global/other', redirectTo: 'plugins', pathMatch: 'full'},
 
   {path: 'account', component: AccountComponent, canActivate: authGuard},
   {path: 'addProxies', component: AddProxiesComponent, canActivate: authGuard},

@@ -423,6 +423,7 @@ export class SettingsService {
     const geoliteTimer = geoliteForm.update_timer ?? {};
 
     const geolite: GlobalSettings['geolite'] = {
+      enabled: geoliteForm.enabled ?? current?.geolite?.enabled ?? true,
       api_key: geoliteForm.api_key ?? current?.geolite?.api_key ?? '',
       auto_update: geoliteForm.auto_update ?? current?.geolite?.auto_update ?? false,
       update_timer: {

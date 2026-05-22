@@ -1,18 +1,35 @@
-<div class="admin-other-page text-gray-200">
+<div class="plugin-geolite-page text-gray-200">
   <form
     [formGroup]="form"
     (ngSubmit)="onSubmit()"
     class="settings-panel bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-lg">
-    <header class="panel-header flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+    <header class="panel-header flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
       <div>
-        <h2 class="text-xl font-semibold text-white mb-1">GeoLite Configuration</h2>
-        <p class="text-sm text-gray-400 max-w-3xl">
-          Manage the MaxMind credentials and cadence used to keep GeoIP databases fresh for proxy enrichment.
-        </p>
+        <a routerLink="/plugins" class="back-link">
+          <i class="pi pi-arrow-left"></i>
+          Plugins
+        </a>
+        <div class="plugin-heading">
+          <span class="plugin-logo-shell">
+            <img src="https://media.licdn.com/dms/image/v2/C560BAQHAOUxYoh2u1Q/company-logo_200_200/company-logo_200_200/0/1671072899861/maxmind_logo?e=2147483647&amp;v=beta&amp;t=WWP-k6AqK1YM0ePQFUi28aEUGjpcuLPSsdKdCSS1940" alt="MaxMind logo" class="plugin-logo"/>
+          </span>
+          <div>
+            <h2 class="text-xl font-semibold text-white mb-1">GeoLite</h2>
+            <p class="text-sm text-gray-400 max-w-3xl">
+              Configure MaxMind GeoLite2 enrichment and update automation.
+            </p>
+          </div>
+        </div>
       </div>
+
+      <p-toggleswitch
+          inputId="geolite-enabled"
+          formControlName="enabled"
+          [ariaLabel]="'Toggle GeoLite plugin'">
+      </p-toggleswitch>
     </header>
 
-    <div class="panel-body mt-6">
+    <div class="panel-body mt-6" [class.disabled]="!pluginEnabled()">
       <div class="tab-stack">
         <section class="section-card bg-neutral-950/40 border border-neutral-800 rounded-xl p-5">
           <div class="section-header flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -64,7 +81,7 @@
           <div
             class="timer-grid mt-4"
             formGroupName="update_timer"
-            [class.disabled]="!form.get('auto_update')?.value">
+            [class.disabled]="!pluginEnabled() || !form.get('auto_update')?.value">
             <div class="timer-field">
               <label class="field-label" for="geolite-days">Days</label>
               <p-select
@@ -125,7 +142,7 @@
 
     <footer class="panel-footer mt-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <p class="text-xs text-gray-500 max-w-xl">
-        Saving immediately refreshes GeoLite databases when a license key is present.
+        Saving immediately refreshes GeoLite databases when the plugin is enabled and a license key is present.
       </p>
       <p-button
         type="submit"
