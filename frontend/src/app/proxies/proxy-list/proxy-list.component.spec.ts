@@ -10,13 +10,18 @@ import {UserService} from '../../services/authorization/user.service';
 describe('ProxyListComponent', () => {
   let component: ProxyListComponent;
   let fixture: ComponentFixture<ProxyListComponent>;
+  let httpServiceStub: {
+    getProxyPage: jasmine.Spy;
+    getProxyFilterOptions: jasmine.Spy;
+    requeueProxy: jasmine.Spy;
+  };
 
   beforeEach(async () => {
-    const httpServiceStub = {
+    httpServiceStub = {
       getProxyPage: jasmine.createSpy('getProxyPage').and.returnValue(of({proxies: [], total: 0})),
       getProxyFilterOptions: jasmine.createSpy('getProxyFilterOptions').and.returnValue(of({countries: [], types: [], anonymityLevels: []})),
       requeueProxy: jasmine.createSpy('requeueProxy').and.returnValue(of({message: 'Proxy queued successfully', proxy_id: 1})),
-    } satisfies Partial<HttpService>;
+    };
     const settingsServiceStub = {
       getUserSettings: jasmine.createSpy('getUserSettings').and.returnValue(undefined),
       userSettings$: of(undefined),
@@ -85,5 +90,38 @@ describe('ProxyListComponent', () => {
 
     expect(component.columnPanelOpen()).toBeTrue();
     expect(component.filterPanelOpen()).toBeFalse();
+  });
+
+  it('reloads the first page with server sort parameters when sorting a column', () => {
+    httpServiceStub.getProxyPage.calls.reset();
+    component.page.set(3);
+    component.pageSize.set(40);
+
+    component.onSort({field: 'reputation', order: -1});
+
+    expect(component.page()).toBe(1);
+    expect(component.sortField()).toBe('reputation');
+    expect(component.sortOrder()).toBe(-1);
+    expect(httpServiceStub.getProxyPage).toHaveBeenCalledWith(1, jasmine.objectContaining({
+      rows: 40,
+      sortField: 'reputation',
+      sortOrder: -1,
+    }));
+  });
+
+  it('clears the sort on the third click of the same column', () => {
+    component.sortField.set('reputation');
+    component.sortOrder.set(-1);
+    httpServiceStub.getProxyPage.calls.reset();
+
+    component.onLazyLoad({first: 0, rows: 40, sortField: 'reputation', sortOrder: 1});
+    component.onSort({field: 'reputation', order: 1});
+
+    expect(component.sortField()).toBeNull();
+    expect(component.sortOrder()).toBeNull();
+    expect(httpServiceStub.getProxyPage).toHaveBeenCalledWith(1, jasmine.objectContaining({
+      sortField: null,
+      sortOrder: null,
+    }));
   });
 });

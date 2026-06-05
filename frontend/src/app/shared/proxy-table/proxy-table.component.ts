@@ -14,7 +14,7 @@ import {
 } from '@angular/core';
 import {NgClass} from '@angular/common';
 import {SelectionModel} from '@angular/cdk/collections';
-import {TableLazyLoadEvent, TableModule} from 'primeng/table';
+import {Table, TableLazyLoadEvent, TableModule} from 'primeng/table';
 import {SkeletonModule} from 'primeng/skeleton';
 import {Tooltip} from 'primeng/tooltip';
 import {CheckboxModule} from 'primeng/checkbox';
@@ -59,6 +59,7 @@ type PageScrollTarget = 'top' | 'bottom';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ProxyTableComponent implements OnInit, OnChanges, OnDestroy {
+  @ViewChild('tableRoot') private table?: Table;
   @ViewChild('tableRoot', { read: ElementRef }) private tableRoot?: ElementRef<HTMLElement>;
 
   private _proxies: ProxyRow[] = [];
@@ -154,6 +155,14 @@ export class ProxyTableComponent implements OnInit, OnChanges, OnDestroy {
 
     if (changes['emptyReputationLabel'] || changes['missingReputationScoreLabel']) {
       this.decorateProxies();
+    }
+
+    if (
+      (changes['sortField'] || changes['sortOrder']) &&
+      this.sortable &&
+      (!this.sortField || !this.sortOrder)
+    ) {
+      this.resetPrimeNgSortVisualState();
     }
   }
 
@@ -436,6 +445,19 @@ export class ProxyTableComponent implements OnInit, OnChanges, OnDestroy {
 
     this.pendingPageScroll = false;
     setTimeout(() => this.scrollToPageTarget(), 0);
+  }
+
+  private resetPrimeNgSortVisualState(): void {
+    setTimeout(() => {
+      if (!this.table || (this.sortField && this.sortOrder)) {
+        return;
+      }
+
+      this.table._sortField = null;
+      this.table._sortOrder = 0;
+      this.table.tableService.onSort(null);
+      this.cdr.markForCheck();
+    }, 0);
   }
 
   private getStoredPageScrollTarget(): PageScrollTarget | null {

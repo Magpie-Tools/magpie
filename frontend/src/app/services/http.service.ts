@@ -80,6 +80,8 @@ export class HttpService {
       filters?: ProxyListFilters;
       includeHealth?: boolean;
       includeReputation?: boolean;
+      sortField?: string | null;
+      sortOrder?: number | null;
     }
   ) {
     let params = new HttpParams();
@@ -98,6 +100,11 @@ export class HttpService {
 
     if (options?.includeReputation !== undefined) {
       params = params.set('includeReputation', options.includeReputation ? 'true' : 'false');
+    }
+
+    if (options?.sortField && options.sortOrder && options.sortOrder !== 0) {
+      params = params.set('sortField', options.sortField);
+      params = params.set('sortOrder', options.sortOrder === 1 ? 'asc' : 'desc');
     }
 
     params = this.appendProxyFilterParams(params, options?.filters);

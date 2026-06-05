@@ -27,7 +27,6 @@ import {InputNumberModule} from 'primeng/inputnumber';
 import {MultiSelectModule} from 'primeng/multiselect';
 import {ProxyListFilters} from '../../models/ProxyListFilters';
 import {ProxyFilterOptions} from '../../models/ProxyFilterOptions';
-import {ProxyReputation} from '../../models/ProxyReputation';
 import {UserSettings} from '../../models/UserSettings';
 import {ProxyFilterPanelComponent} from '../../shared/proxy-filter-panel/proxy-filter-panel.component';
 import {ProxyTableComponent} from '../../shared/proxy-table/proxy-table.component';
@@ -244,6 +243,8 @@ export class ProxyListComponent implements OnInit, AfterViewInit, OnDestroy {
       filters: filterPayload,
       includeHealth,
       includeReputation,
+      sortField: normalizedSortField,
+      sortOrder: normalizedSortOrder,
     })
       .pipe(
         takeUntil(this.navigationStart$),
@@ -257,9 +258,8 @@ export class ProxyListComponent implements OnInit, AfterViewInit, OnDestroy {
           const data = [...res.proxies];
           this.page.set(page);
           this.pageSize.set(rows);
-          const sorted = this.applySort(data, normalizedSortField, normalizedSortOrder);
-          this.dataSource.set(sorted);
-          this.totalItems.set(res.total ?? sorted.length);
+          this.dataSource.set(data);
+          this.totalItems.set(res.total ?? data.length);
           this.pruneSelection();
           this.hasLoaded.set(true);
           this.showAddProxiesMessage.emit(this.totalItems() === 0 && this.hasLoaded());
@@ -333,6 +333,10 @@ export class ProxyListComponent implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
 
+    if (sortChanged) {
+      return;
+    }
+
     this.page.set(newPage);
     this.pageSize.set(newPageSize);
     this.sortField.set(normalizedSortField);
@@ -348,11 +352,21 @@ export class ProxyListComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   onSort(event: { field: string; order: number }) {
-    const hasOrder = event.order !== 0 && event.order !== undefined && event.order !== null;
-    this.sortField.set(hasOrder ? this.resolveSortField(event.field) : null);
-    this.sortOrder.set(hasOrder ? event.order : null);
-    const sorted = this.applySort([...this.dataSource()], this.sortField(), this.sortOrder());
-    this.dataSource.set(sorted);
+    const clickedSortField = this.resolveSortField(event.field);
+    const isResetClick = clickedSortField === this.sortField() && this.sortOrder() === -1 && event.order === 1;
+    const hasOrder = !isResetClick && event.order !== 0 && event.order !== undefined && event.order !== null;
+    const normalizedSortField = hasOrder ? clickedSortField : null;
+    const normalizedSortOrder = hasOrder ? event.order : null;
+
+    this.page.set(1);
+    this.sortField.set(normalizedSortField);
+    this.sortOrder.set(normalizedSortOrder);
+    this.getAndSetProxyList({
+      first: 0,
+      rows: this.pageSize(),
+      sortField: normalizedSortField ?? undefined,
+      sortOrder: normalizedSortOrder ?? undefined,
+    });
   }
 
   toggleSelection(proxy: ProxyInfo): void {
@@ -563,123 +577,6 @@ export class ProxyListComponent implements OnInit, AfterViewInit, OnDestroy {
     }
 
     return Array.isArray(sortField) ? sortField[0] : sortField;
-  }
-
-  private applySort(data: ProxyInfo[], sortField: string | null | undefined, sortOrder: number | null | undefined): ProxyInfo[] {
-    if (!sortField || !sortOrder || sortOrder === 0) {
-      return data;
-    }
-
-    const direction = sortOrder === 1 ? 1 : -1;
-
-    return data.sort((a, b) => {
-      const valueA = this.normalizeSortableValue(this.getSortableValue(a, sortField));
-      const valueB = this.normalizeSortableValue(this.getSortableValue(b, sortField));
-
-      if (valueA === valueB) {
-        return 0;
-      }
-
-      if (valueA === undefined || valueA === null) {
-        return 1 * direction;
-      }
-
-      if (valueB === undefined || valueB === null) {
-        return -1 * direction;
-      }
-
-      if (valueA < valueB) {
-        return -1 * direction;
-      }
-
-      if (valueA > valueB) {
-        return 1 * direction;
-      }
-
-      return 0;
-    });
-  }
-
-  private normalizeSortableValue(value: unknown): string | number | null {
-    if (value === null || value === undefined) {
-      return null;
-    }
-
-    if (typeof value === 'number') {
-      return value;
-    }
-
-    if (typeof value === 'boolean') {
-      return value ? 1 : 0;
-    }
-
-    if (value instanceof Date) {
-      return value.getTime();
-    }
-
-    if (typeof value === 'string') {
-      const timestamp = Date.parse(value);
-      return Number.isNaN(timestamp) ? value.toLowerCase() : timestamp;
-    }
-
-    return null;
-  }
-
-  private getSortableValue(proxy: ProxyInfo, field: string | null | undefined): unknown {
-    if (!field) {
-      return null;
-    }
-
-    if (field === 'health_overall' || field === 'alive_ratio_overall') {
-      return proxy.health?.overall ?? null;
-    }
-    if (field === 'health_http' || field === 'alive_ratio_http') {
-      return proxy.health?.http ?? null;
-    }
-    if (field === 'health_https' || field === 'alive_ratio_https') {
-      return proxy.health?.https ?? null;
-    }
-    if (field === 'health_socks4' || field === 'alive_ratio_socks4') {
-      return proxy.health?.socks4 ?? null;
-    }
-    if (field === 'health_socks5' || field === 'alive_ratio_socks5') {
-      return proxy.health?.socks5 ?? null;
-    }
-    if (field === 'reputation') {
-      return this.getPrimaryReputation(proxy)?.score ?? null;
-    }
-    if (field === 'ip_port') {
-      const ip = proxy.ip ?? '';
-      const port = Number.isFinite(proxy.port) ? proxy.port : 0;
-      return `${ip}:${port.toString().padStart(5, '0')}`;
-    }
-
-    if (Object.prototype.hasOwnProperty.call(proxy, field)) {
-      return proxy[field as keyof ProxyInfo];
-    }
-
-    return null;
-  }
-
-  private getPrimaryReputation(proxy: ProxyInfo): ProxyReputation | null {
-    const reputation = proxy.reputation;
-    if (!reputation) {
-      return null;
-    }
-
-    if (reputation.overall) {
-      return reputation.overall;
-    }
-
-    if (reputation.protocols) {
-      for (const rep of Object.values(reputation.protocols)) {
-        if (rep) {
-          return rep;
-        }
-      }
-    }
-
-    return null;
   }
 
   onProxiesAdded(): void {
