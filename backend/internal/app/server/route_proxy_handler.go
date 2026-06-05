@@ -266,6 +266,8 @@ func getProxyPage(w http.ResponseWriter, r *http.Request) {
 
 	includeHealth := parseBoolQueryParam(r.URL.Query().Get("includeHealth"), true)
 	includeReputation := parseBoolQueryParam(r.URL.Query().Get("includeReputation"), true)
+	sortField := strings.TrimSpace(r.URL.Query().Get("sortField"))
+	sortOrder := strings.TrimSpace(r.URL.Query().Get("sortOrder"))
 
 	proxies, total := database.GetProxyInfoPageWithFiltersAndOptions(
 		userID,
@@ -276,6 +278,8 @@ func getProxyPage(w http.ResponseWriter, r *http.Request) {
 		database.ProxyPageQueryOptions{
 			IncludeHealth:     includeHealth,
 			IncludeReputation: includeReputation,
+			SortField:         sortField,
+			SortOrder:         sortOrder,
 		},
 	)
 

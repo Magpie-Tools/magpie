@@ -42,6 +42,8 @@ var ErrNoProxiesSelected = errors.New("no proxies selected for deletion")
 type ProxyPageQueryOptions struct {
 	IncludeHealth     bool
 	IncludeReputation bool
+	SortField         string
+	SortOrder         string
 }
 
 func InsertAndGetProxiesWithUser(proxies []domain.Proxy, userIDs ...uint) ([]domain.Proxy, error) {
@@ -734,13 +736,17 @@ func GetProxyInfoPageWithFiltersAndOptions(
 		Joins("JOIN user_proxies up ON up.proxy_id = proxies.id AND up.user_id = ?", userId).
 		Joins("LEFT JOIN (?) AS ps ON ps.proxy_id = proxies.id", subQuery).
 		Joins("LEFT JOIN proxy_overall_statuses pos ON pos.proxy_id = proxies.id").
-		Joins("LEFT JOIN anonymity_levels al ON al.id = ps.level_id").
-		Order("alive DESC, latest_check DESC")
+		Joins("LEFT JOIN anonymity_levels al ON al.id = ps.level_id")
 
 	if options.IncludeHealth {
 		healthSubQuery := buildProxyHealthSubQuery(userId)
 		query = query.Joins("LEFT JOIN (?) AS stats ON stats.proxy_id = proxies.id", healthSubQuery)
 	}
+	if options.SortField == "reputation" {
+		query = query.Joins("LEFT JOIN proxy_reputations pr_overall ON pr_overall.proxy_id = proxies.id AND pr_overall.kind = ?", domain.ProxyReputationKindOverall)
+	}
+
+	query = applyProxyPageSort(query, options)
 
 	filterQuery := buildProxyListFilterQuery(userId, filters)
 	if filterQuery != nil {
@@ -834,9 +840,131 @@ func GetProxyInfoPageWithFiltersAndOptions(
 }
 
 func normalizeProxyPageQueryOptions(options ProxyPageQueryOptions) ProxyPageQueryOptions {
+	sortField := normalizeProxyPageSortField(options.SortField)
+	sortOrder := normalizeProxyPageSortOrder(options.SortOrder)
+	if sortField == "" || sortOrder == "" {
+		sortField = ""
+		sortOrder = ""
+	}
+
 	return ProxyPageQueryOptions{
-		IncludeHealth:     options.IncludeHealth,
-		IncludeReputation: options.IncludeReputation,
+		IncludeHealth:     options.IncludeHealth || proxyPageSortNeedsHealth(sortField),
+		IncludeReputation: options.IncludeReputation || sortField == "reputation",
+		SortField:         sortField,
+		SortOrder:         sortOrder,
+	}
+}
+
+func normalizeProxyPageSortField(field string) string {
+	switch strings.ToLower(strings.TrimSpace(field)) {
+	case "alive":
+		return "alive"
+	case "health_overall", "alive_ratio_overall":
+		return "health_overall"
+	case "health_http", "alive_ratio_http":
+		return "health_http"
+	case "health_https", "alive_ratio_https":
+		return "health_https"
+	case "health_socks4", "alive_ratio_socks4":
+		return "health_socks4"
+	case "health_socks5", "alive_ratio_socks5":
+		return "health_socks5"
+	case "ip":
+		return "ip"
+	case "ip_port":
+		return "ip_port"
+	case "port":
+		return "port"
+	case "response_time":
+		return "response_time"
+	case "estimated_type":
+		return "estimated_type"
+	case "country":
+		return "country"
+	case "reputation":
+		return "reputation"
+	case "latest_check":
+		return "latest_check"
+	default:
+		return ""
+	}
+}
+
+func normalizeProxyPageSortOrder(order string) string {
+	switch strings.ToLower(strings.TrimSpace(order)) {
+	case "asc", "1":
+		return "asc"
+	case "desc", "-1":
+		return "desc"
+	default:
+		return ""
+	}
+}
+
+func proxyPageSortNeedsHealth(field string) bool {
+	return field == "health_overall" ||
+		field == "health_http" ||
+		field == "health_https" ||
+		field == "health_socks4" ||
+		field == "health_socks5"
+}
+
+func applyProxyPageSort(query *gorm.DB, options ProxyPageQueryOptions) *gorm.DB {
+	if options.SortField == "" || options.SortOrder == "" {
+		return query.Order("alive DESC, latest_check DESC")
+	}
+
+	direction := "ASC"
+	if options.SortOrder == "desc" {
+		direction = "DESC"
+	}
+
+	expressions := proxyPageSortExpressions(options.SortField)
+	if len(expressions) == 0 {
+		return query.Order("alive DESC, latest_check DESC")
+	}
+
+	orderParts := make([]string, 0, len(expressions)+1)
+	for _, expression := range expressions {
+		orderParts = append(orderParts, fmt.Sprintf("%s %s NULLS LAST", expression, direction))
+	}
+	orderParts = append(orderParts, "proxies.id ASC")
+
+	return query.Order(strings.Join(orderParts, ", "))
+}
+
+func proxyPageSortExpressions(field string) []string {
+	switch field {
+	case "alive":
+		return []string{"COALESCE(pos.overall_alive, false)"}
+	case "health_overall":
+		return []string{"stats.health_overall"}
+	case "health_http":
+		return []string{"stats.health_http"}
+	case "health_https":
+		return []string{"stats.health_https"}
+	case "health_socks4":
+		return []string{"stats.health_socks4"}
+	case "health_socks5":
+		return []string{"stats.health_socks5"}
+	case "ip":
+		return []string{"proxies.ip_int"}
+	case "ip_port":
+		return []string{"proxies.ip_int", "proxies.port"}
+	case "port":
+		return []string{"proxies.port"}
+	case "response_time":
+		return []string{"COALESCE(ps.response_time, 0)"}
+	case "estimated_type":
+		return []string{"COALESCE(NULLIF(proxies.estimated_type, ''), 'N/A')"}
+	case "country":
+		return []string{"COALESCE(NULLIF(proxies.country, ''), 'N/A')"}
+	case "reputation":
+		return []string{"pr_overall.score"}
+	case "latest_check":
+		return []string{"COALESCE(pos.last_checked_at, ps.created_at, '0001-01-01 00:00:00'::timestamp)"}
+	default:
+		return nil
 	}
 }
 
