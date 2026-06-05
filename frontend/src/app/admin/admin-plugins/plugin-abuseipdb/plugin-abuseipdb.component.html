@@ -1,0 +1,116 @@
+<div class="plugin-abuseipdb-page text-gray-200">
+  <form
+    [formGroup]="form"
+    (ngSubmit)="onSubmit()"
+    class="settings-panel bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-lg">
+    <header class="panel-header flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div>
+        <a routerLink="/plugins" class="back-link">
+          <i class="pi pi-arrow-left"></i>
+          Plugins
+        </a>
+        <div class="plugin-heading">
+          <span class="plugin-logo-shell">
+            <img src="https://www.abuseipdb.com/favicon.ico" alt="AbuseIPDB logo" class="plugin-logo"/>
+          </span>
+          <div>
+            <h2 class="text-xl font-semibold text-white mb-1">AbuseIPDB</h2>
+            <p class="text-sm text-gray-400 max-w-3xl">
+              Check proxy IPs against AbuseIPDB and weight the reputation score toward abuse intelligence.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <p-toggleswitch
+        inputId="abuseipdb-enabled"
+        formControlName="enabled"
+        [ariaLabel]="'Toggle AbuseIPDB plugin'">
+      </p-toggleswitch>
+    </header>
+
+    <div class="panel-body mt-6" [class.disabled]="!pluginEnabled()">
+      <div class="tab-stack">
+        <section class="section-card bg-neutral-950/40 border border-neutral-800 rounded-xl p-5">
+          <div class="section-header flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h3 class="section-title">API Access</h3>
+              <p class="section-hint">Provide the AbuseIPDB API key used for the v2 check endpoint.</p>
+            </div>
+          </div>
+
+          <div class="field-grid mt-4">
+            <div class="field-group">
+              <label class="field-label" for="abuseipdb-api-key">API Key</label>
+              <input
+                id="abuseipdb-api-key"
+                type="text"
+                pInputText
+                formControlName="api_key"
+                autocomplete="off"
+                placeholder="Enter AbuseIPDB API key"
+                class="p-inputtext-sm w-full"/>
+            </div>
+
+            <div class="field-group">
+              <label class="field-label" for="abuseipdb-max-age">Report max age</label>
+              <p-inputNumber
+                inputId="abuseipdb-max-age"
+                formControlName="max_age_in_days"
+                [min]="1"
+                [max]="365"
+                [showButtons]="true"
+                suffix=" days"
+                styleClass="w-full">
+              </p-inputNumber>
+            </div>
+          </div>
+        </section>
+
+        <section class="section-card bg-neutral-950/40 border border-neutral-800 rounded-xl p-5">
+          <div class="section-header flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h3 class="section-title">Daily Checks</h3>
+              <p class="section-hint">The backend updates this from AbuseIPDB rate limit headers and spreads checks across the reset window.</p>
+            </div>
+            <div class="quota-number">{{ quotaDisplay() }}</div>
+          </div>
+
+          <div class="quota-bar mt-4" aria-hidden="true">
+            <span class="quota-bar__fill" [style.width.%]="quotaUsagePercent()"></span>
+          </div>
+
+          <div class="meta-grid mt-5">
+            <div class="meta-info">
+              <span class="meta-label">Resets</span>
+              <span class="meta-value">{{ quotaResetLabel() }}</span>
+            </div>
+            <div class="meta-info">
+              <span class="meta-label">Last API check</span>
+              <span class="meta-value">{{ lastCheckedLabel() }}</span>
+            </div>
+          </div>
+
+          @if (lastError()) {
+            <div class="error-note mt-5">
+              {{ lastError() }}
+            </div>
+          }
+        </section>
+      </div>
+    </div>
+
+    <footer class="panel-footer mt-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <p class="text-xs text-gray-500 max-w-xl">
+        AbuseIPDB scores are applied strongly to the proxy's overall reputation after a proxy has been checked.
+      </p>
+      <p-button
+        type="submit"
+        label="Save Settings"
+        icon="pi pi-save"
+        [disabled]="form.invalid || form.pristine"
+        styleClass="save-button">
+      </p-button>
+    </footer>
+  </form>
+</div>

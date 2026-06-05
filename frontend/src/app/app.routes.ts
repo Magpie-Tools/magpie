@@ -18,6 +18,7 @@ import {AdminCheckerComponent} from './admin/admin-checker/admin-checker.compone
 import {AdminScraperComponent} from './admin/admin-scraper/admin-scraper.component';
 import {AdminPluginsComponent} from './admin/admin-plugins/admin-plugins.component';
 import {PluginGeoliteComponent} from './admin/admin-plugins/plugin-geolite/plugin-geolite.component';
+import {PluginAbuseIPDBComponent} from './admin/admin-plugins/plugin-abuseipdb/plugin-abuseipdb.component';
 import {AdminBlacklistComponent} from './admin/admin-blacklist/admin-blacklist.component';
 import {ScraperComponent} from './scraper/scraper.component';
 import {ScrapeSourceDetailComponent} from './scraper/scrape-source-detail/scrape-source-detail.component';
@@ -38,6 +39,7 @@ export const routes: Routes = [
   {path: 'global/blacklist', component: AdminBlacklistComponent, canActivate: adminGuard},
   {path: 'plugins', component: AdminPluginsComponent, canActivate: adminGuard},
   {path: 'plugins/geolite', component: PluginGeoliteComponent, canActivate: adminGuard},
+  {path: 'plugins/abuseipdb', component: PluginAbuseIPDBComponent, canActivate: adminGuard},
   {path: 'global/plugins', redirectTo: 'plugins', pathMatch: 'full'},
   {path: 'global/other', redirectTo: 'plugins', pathMatch: 'full'},
 

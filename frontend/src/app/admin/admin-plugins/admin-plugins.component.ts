@@ -29,12 +29,20 @@ export class AdminPluginsComponent implements OnInit, OnDestroy {
       provider: 'MaxMind',
       logo: 'https://media.licdn.com/dms/image/v2/C560BAQHAOUxYoh2u1Q/company-logo_200_200/company-logo_200_200/0/1671072899861/maxmind_logo?e=2147483647&v=beta&t=WWP-k6AqK1YM0ePQFUi28aEUGjpcuLPSsdKdCSS1940',
       route: '/plugins/geolite'
+    },
+    {
+      id: 'abuseipdb',
+      name: 'AbuseIPDB',
+      provider: 'AbuseIPDB',
+      logo: 'https://www.abuseipdb.com/favicon.ico',
+      route: '/plugins/abuseipdb'
     }
   ];
 
   settings = signal<GlobalSettings | undefined>(undefined);
   pluginStates = computed(() => ({
-    geolite: this.settings()?.plugins?.geolite?.enabled ?? false
+    geolite: this.settings()?.plugins?.geolite?.enabled ?? false,
+    abuseipdb: this.settings()?.plugins?.abuseipdb?.enabled ?? false
   }));
   pendingPluginIds = signal<ReadonlySet<string>>(new Set());
   private destroy$ = new Subject<void>();
@@ -64,6 +72,9 @@ export class AdminPluginsComponent implements OnInit, OnDestroy {
     if (pluginId === 'geolite') {
       return this.pluginStates().geolite;
     }
+    if (pluginId === 'abuseipdb') {
+      return this.pluginStates().abuseipdb;
+    }
     return true;
   }
 
@@ -76,17 +87,18 @@ export class AdminPluginsComponent implements OnInit, OnDestroy {
   }
 
   getPluginIncompleteReason(pluginId: string): string | null {
-    if (pluginId !== 'geolite') {
-      return null;
+    if (pluginId === 'geolite') {
+      const geolite = this.settings()?.plugins?.geolite;
+      if (geolite?.enabled && !geolite.api_key?.trim()) {
+        return 'GeoLite is enabled but missing a MaxMind license key.';
+      }
     }
 
-    const geolite = this.settings()?.plugins?.geolite;
-    if (!geolite?.enabled) {
-      return null;
-    }
-
-    if (!geolite.api_key?.trim()) {
-      return 'GeoLite is enabled but missing a MaxMind license key.';
+    if (pluginId === 'abuseipdb') {
+      const abuseipdb = this.settings()?.plugins?.abuseipdb;
+      if (abuseipdb?.enabled && !abuseipdb.api_key?.trim()) {
+        return 'AbuseIPDB is enabled but missing an API key.';
+      }
     }
 
     return null;
@@ -97,7 +109,7 @@ export class AdminPluginsComponent implements OnInit, OnDestroy {
       return;
     }
 
-    if (pluginId !== 'geolite') {
+    if (pluginId !== 'geolite' && pluginId !== 'abuseipdb') {
       return;
     }
 
@@ -106,7 +118,11 @@ export class AdminPluginsComponent implements OnInit, OnDestroy {
     this.setPluginEnabled(pluginId, nextEnabled);
     this.setPluginPending(pluginId, true);
 
-    this.settingsService.saveGlobalSettings({ plugins: { geolite: { enabled: nextEnabled } } }).subscribe({
+    const pluginsPayload = pluginId === 'geolite'
+      ? { geolite: { enabled: nextEnabled } }
+      : { abuseipdb: { enabled: nextEnabled } };
+
+    this.settingsService.saveGlobalSettings({ plugins: pluginsPayload }).subscribe({
       next: () => {
         this.setPluginPending(pluginId, false);
       },
@@ -122,19 +138,29 @@ export class AdminPluginsComponent implements OnInit, OnDestroy {
 
   private setPluginEnabled(pluginId: string, enabled: boolean): void {
     const current = this.settings();
-    if (!current || pluginId !== 'geolite') {
+    if (!current || (pluginId !== 'geolite' && pluginId !== 'abuseipdb')) {
       return;
     }
 
+    const plugins = pluginId === 'geolite'
+      ? {
+          ...current.plugins,
+          geolite: {
+            ...current.plugins.geolite,
+            enabled
+          }
+        }
+      : {
+          ...current.plugins,
+          abuseipdb: {
+            ...current.plugins.abuseipdb,
+            enabled
+          }
+        };
+
     this.settings.set({
       ...current,
-      plugins: {
-        ...current.plugins,
-        geolite: {
-          ...current.plugins.geolite,
-          enabled
-        }
-      }
+      plugins
     });
   }
 

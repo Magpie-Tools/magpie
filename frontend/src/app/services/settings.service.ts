@@ -65,20 +65,26 @@ export class SettingsService {
       return;
     }
 
-    this.http.getGlobalSettings().subscribe({
-      next: res => {
-        this.globalSettingsLoaded = true;
-        this.settings = res;
-        this.settingsSubject.next(this.settings);
-      },
-      error: err => {
-        if (err.status === 401 || err.status === 403) {
-          this.globalSettingsLoaded = false;
-          return;
+    this.refreshGlobalSettings().subscribe({ error: () => {} });
+  }
+
+  refreshGlobalSettings(): Observable<GlobalSettings | undefined> {
+    return this.http.getGlobalSettings().pipe(
+      tap({
+        next: res => {
+          this.globalSettingsLoaded = true;
+          this.settings = res;
+          this.settingsSubject.next(this.settings);
+        },
+        error: err => {
+          if (err.status === 401 || err.status === 403) {
+            this.globalSettingsLoaded = false;
+            return;
+          }
+          this.notification.showError("Error while getting global settings " + err.error.message)
         }
-        this.notification.showError("Error while getting global settings " + err.error.message)
-      }
-    });
+      })
+    );
   }
 
   getGlobalSettings(): GlobalSettings | undefined {
@@ -434,7 +440,18 @@ export class SettingsService {
       },
       last_updated_at: geoliteForm.last_updated_at ?? current?.plugins?.geolite?.last_updated_at ?? null
     };
-    const plugins: GlobalSettings['plugins'] = { geolite };
+    const abuseIPDBForm = formData.plugins?.abuseipdb ?? formData.abuseipdb ?? {};
+    const abuseipdb: GlobalSettings['plugins']['abuseipdb'] = {
+      enabled: abuseIPDBForm.enabled ?? current?.plugins?.abuseipdb?.enabled ?? false,
+      api_key: abuseIPDBForm.api_key ?? current?.plugins?.abuseipdb?.api_key ?? '',
+      max_age_in_days: abuseIPDBForm.max_age_in_days ?? current?.plugins?.abuseipdb?.max_age_in_days ?? 30,
+      daily_limit: abuseIPDBForm.daily_limit ?? current?.plugins?.abuseipdb?.daily_limit ?? 0,
+      daily_remaining: abuseIPDBForm.daily_remaining ?? current?.plugins?.abuseipdb?.daily_remaining ?? 0,
+      daily_reset_at: abuseIPDBForm.daily_reset_at ?? current?.plugins?.abuseipdb?.daily_reset_at ?? null,
+      last_checked_at: abuseIPDBForm.last_checked_at ?? current?.plugins?.abuseipdb?.last_checked_at ?? null,
+      last_error: abuseIPDBForm.last_error ?? current?.plugins?.abuseipdb?.last_error ?? ''
+    };
+    const plugins: GlobalSettings['plugins'] = { geolite, abuseipdb };
 
     /* ---------- final shape ---------- */
     return { protocols, checker, scraper, proxy_limits, plugins, blacklist_sources, blacklist_timer, website_blacklist };

@@ -50,6 +50,16 @@ const defaultSettings: GlobalSettings = {
       auto_update: false,
       update_timer: timer(),
       last_updated_at: null
+    },
+    abuseipdb: {
+      enabled: false,
+      api_key: '',
+      max_age_in_days: 30,
+      daily_limit: 0,
+      daily_remaining: 0,
+      daily_reset_at: null,
+      last_checked_at: null,
+      last_error: ''
     }
   },
   blacklist_timer: timer(),
@@ -96,6 +106,7 @@ describe('AdminPluginsComponent', () => {
     component.settings.set({
       ...defaultSettings,
       plugins: {
+        ...defaultSettings.plugins,
         geolite: {
           ...defaultSettings.plugins.geolite,
           api_key: 'license-key'

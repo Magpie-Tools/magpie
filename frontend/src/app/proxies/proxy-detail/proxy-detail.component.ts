@@ -845,6 +845,18 @@ export class ProxyDetailComponent implements OnInit, OnDestroy {
       }
     }
 
+    if (key === 'abuseipdb' && this.isPlainObject(value)) {
+      const reputationScore = this.numericSignalValue(value['reputation_score']);
+      if (reputationScore !== null) {
+        return this.toneForScore(reputationScore);
+      }
+
+      const abuseConfidenceScore = this.numericSignalValue(value['abuse_confidence_score']);
+      if (abuseConfidenceScore !== null) {
+        return this.toneForScore(100 - abuseConfidenceScore);
+      }
+    }
+
     if (typeof value === 'number') {
       if (this.isScoreSignal(key)) {
         return this.toneForScore(value);
@@ -922,6 +934,17 @@ export class ProxyDetailComponent implements OnInit, OnDestroy {
       'anonymity_score',
       'failures_score',
     ].includes(key);
+  }
+
+  private numericSignalValue(value: unknown): number | null {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+    if (typeof value === 'string') {
+      const parsed = Number(value.trim());
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+    return null;
   }
 
   private toneForScore(rawScore: number): SignalTone {

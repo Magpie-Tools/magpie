@@ -74,6 +74,16 @@ export interface GlobalSettings {
       };
       last_updated_at?: string | null;
     };
+    abuseipdb: {
+      enabled: boolean;
+      api_key: string;
+      max_age_in_days: number;
+      daily_limit: number;
+      daily_remaining: number;
+      daily_reset_at?: string | null;
+      last_checked_at?: string | null;
+      last_error?: string | null;
+    };
   };
 
   blacklist_timer: {
