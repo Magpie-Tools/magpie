@@ -13,6 +13,7 @@ import {
   DASHBOARD_BACKEND_UNAVAILABLE_ERROR,
   DashboardInfo,
   DashboardViewer,
+  FastestAliveProxy,
   GraphqlService,
   JudgeValidProxy,
   ProxyHistoryEntry,
@@ -23,6 +24,10 @@ import {
 } from '../services/graphql.service';
 import {ProxyReputationCardComponent} from './cards/proxy-reputation-card/proxy-reputation-card.component';
 import {SkeletonModule} from 'primeng/skeleton';
+import {
+  FastestAliveProxiesCardComponent,
+  FastestAliveProxyCountryLegend
+} from './cards/fastest-alive-proxies-card/fastest-alive-proxies-card.component';
 
 interface SparklineMetric {
   value: number;
@@ -60,6 +65,7 @@ interface ProxyLineI18n {
     ProxiesPerCountryCardComponent,
     JudgeByPercentageCardComponent,
     ProxyReputationCardComponent,
+    FastestAliveProxiesCardComponent,
     SkeletonModule
   ],
   styleUrls: ['./dashboard.component.scss']
@@ -88,6 +94,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }>>([]);
 
   proxyHistory = signal<ProxyCheck[]>([]);
+
+  fastestAliveProxyCount = signal(0);
+  fastestAliveScatterData = signal<any>({});
+  fastestAliveScatterOptions = signal<any>({});
+  fastestAliveCountryLegend = signal<FastestAliveProxyCountryLegend[]>([]);
 
   reputationBreakdown = signal<ReputationBreakdown>({ good: 0, neutral: 0, poor: 0, unknown: 0 });
   reputationChartData = signal<any>({});
@@ -205,6 +216,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.updateCountryBreakdown(viewer.dashboard?.countryBreakdown ?? []);
     this.updateReputationOverview(viewer.dashboard);
     this.updateProxyHistory(viewer.recentProxyChecks ?? []);
+    this.updateFastestAliveScatter(viewer.fastestAliveProxies ?? []);
     this.updateAnonymitySummary(viewer.dashboard?.judgeValidProxies ?? []);
     this.updateJudgeBreakdown(viewer.dashboard?.judgeValidProxies ?? []);
     this.buildProxiesLineChart(viewer.proxyHistory ?? [], viewer.proxyLimit);
@@ -359,6 +371,262 @@ export class DashboardComponent implements OnInit, OnDestroy {
         .sort((a, b) => b.date.getTime() - a.date.getTime())
         .slice(0, 8)
     );
+  }
+
+  private updateFastestAliveScatter(proxies: FastestAliveProxy[]): void {
+    const prepared = proxies
+      .filter((proxy) => Number.isFinite(proxy.responseTime) && proxy.responseTime >= 0)
+      .map((proxy, index) => {
+        const country = this.normalizeCountryBreakdownName(proxy.country);
+        const reputation = this.normalizeReputationLabel(proxy.reputationLabel);
+        const reputationScore = Number.isFinite(proxy.reputationScore)
+          ? Math.max(0, Math.min(100, proxy.reputationScore))
+          : 0;
+        return {
+          rank: index + 1,
+          proxy: `${proxy.ip}:${proxy.port}`,
+          responseTime: proxy.responseTime,
+          country,
+          reputation,
+          reputationScore,
+          latestCheck: proxy.latestCheck
+        };
+      });
+
+    this.fastestAliveProxyCount.set(prepared.length);
+
+    const countryStats = prepared.reduce((acc, point) => {
+      const values = acc.get(point.country) ?? [];
+      values.push(point.responseTime);
+      acc.set(point.country, values);
+      return acc;
+    }, new Map<string, number[]>());
+
+    const countryOrder = Array.from(countryStats, ([country, values]) => ({
+      country,
+      count: values.length,
+      medianLatency: this.median(values)
+    })).sort((a, b) => a.medianLatency - b.medianLatency || b.count - a.count || a.country.localeCompare(b.country));
+
+    const countryIndex = new Map(countryOrder.map((entry, index) => [entry.country, index + 1]));
+    const points = prepared.map((point) => {
+      const bucket = countryIndex.get(point.country) ?? 1;
+      return {
+        x: bucket + this.stableJitter(point.proxy),
+        y: point.responseTime,
+        rank: point.rank,
+        proxy: point.proxy,
+        country: point.country,
+        reputation: point.reputation,
+        reputationScore: point.reputationScore,
+        latestCheck: point.latestCheck
+      };
+    });
+
+    const countryLegend = countryOrder.map((entry) => ({
+      country: entry.country,
+      count: entry.count,
+      color: this.resolveCountryColor(entry.country)
+    }));
+
+    this.fastestAliveCountryLegend.set(countryLegend);
+
+    if (!points.length) {
+      this.fastestAliveScatterData.set({ datasets: [] });
+      this.fastestAliveScatterOptions.set(this.createFastestAliveScatterOptions([]));
+      return;
+    }
+
+    this.fastestAliveScatterData.set({
+      datasets: [
+        {
+          label: 'Alive proxies',
+          data: points,
+          parsing: false,
+          backgroundColor: points.map((point) => this.resolveCountryColor(point.country)),
+          borderColor: '#0f172a',
+          borderWidth: 1.5,
+          pointRadius: 6,
+          pointHoverRadius: 8,
+          hitRadius: 14,
+          pointStyle: points.map((point) => this.resolveReputationPointStyle(point.reputation))
+        }
+      ]
+    });
+
+    this.fastestAliveScatterOptions.set(this.createFastestAliveScatterOptions(countryOrder.map((entry) => entry.country)));
+  }
+
+  private createFastestAliveScatterOptions(countries: string[]): Record<string, unknown> {
+    const countryCount = Math.max(countries.length, 1);
+
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 550 },
+      layout: {
+        padding: { left: 8, right: 16, top: 10, bottom: 4 }
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#111827',
+          titleColor: '#f9fafb',
+          bodyColor: '#e5e7eb',
+          borderColor: '#1f2937',
+          borderWidth: 1,
+          padding: 12,
+          callbacks: {
+            title: (items: any[]) => {
+              const raw = items?.[0]?.raw;
+              return raw?.proxy ? `#${raw.rank} ${raw.proxy}` : 'Alive proxy';
+            },
+            label: (context: any) => {
+              const raw = context?.raw ?? {};
+              const label = this.formatReputationLabel(raw.reputation);
+              return [
+                `Latency: ${this.formatChartValue(raw.y ?? 0)} ms`,
+                `Country: ${raw.country ?? 'Unknown'}`,
+                `Reputation: ${label}, score ${Number(raw.reputationScore ?? 0).toFixed(1)}`
+              ];
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          min: 0.5,
+          max: countryCount + 0.5,
+          title: {
+            display: true,
+            text: 'Country',
+            color: '#94a3b8'
+          },
+          ticks: {
+            color: '#9ca3af',
+            maxRotation: 35,
+            minRotation: countries.length > 10 ? 35 : 0,
+            precision: 0,
+            stepSize: 1,
+            callback: (value: string | number) => {
+              const index = Number(value);
+              if (!Number.isInteger(index) || index < 1 || index > countries.length) {
+                return '';
+              }
+              return this.truncateAxisLabel(countries[index - 1]);
+            }
+          },
+          grid: {
+            color: '#2f333a'
+          },
+          border: {
+            color: '#374151'
+          }
+        },
+        y: {
+          min: 0,
+          beginAtZero: true,
+          title: {
+            display: true,
+            text: 'Response time (ms)',
+            color: '#94a3b8'
+          },
+          ticks: {
+            color: '#9ca3af',
+            callback: (value: string | number) => `${this.formatChartValue(value)} ms`
+          },
+          grid: {
+            color: '#2f333a'
+          },
+          border: {
+            color: '#374151'
+          }
+        }
+      }
+    };
+  }
+
+  private median(values: number[]): number {
+    if (!values.length) {
+      return 0;
+    }
+
+    const sorted = [...values].sort((a, b) => a - b);
+    const midpoint = Math.floor(sorted.length / 2);
+    if (sorted.length % 2 === 0) {
+      return (sorted[midpoint - 1] + sorted[midpoint]) / 2;
+    }
+    return sorted[midpoint];
+  }
+
+  private stableJitter(seed: string): number {
+    let hash = 0;
+    for (let index = 0; index < seed.length; index++) {
+      hash = ((hash * 31) + seed.charCodeAt(index)) >>> 0;
+    }
+    return ((hash % 1000) / 1000 - 0.5) * 0.62;
+  }
+
+  private truncateAxisLabel(label: string): string {
+    if (label.length <= 12) {
+      return label;
+    }
+    return `${label.slice(0, 11)}...`;
+  }
+
+  private normalizeReputationLabel(label: string | undefined | null): string {
+    const normalized = (label ?? '').trim().toLowerCase();
+    if (normalized === 'good' || normalized === 'neutral') {
+      return normalized;
+    }
+    if (normalized === 'poor' || normalized === 'bad') {
+      return 'bad';
+    }
+    return 'unknown';
+  }
+
+  private formatReputationLabel(label: string | undefined | null): string {
+    const normalized = this.normalizeReputationLabel(label);
+    if (normalized === 'bad') {
+      return 'Bad';
+    }
+    if (normalized === 'good') {
+      return 'Good';
+    }
+    if (normalized === 'neutral') {
+      return 'Neutral';
+    }
+    return 'Unknown';
+  }
+
+  private resolveReputationPointStyle(label: string): string {
+    switch (this.normalizeReputationLabel(label)) {
+      case 'good':
+        return 'circle';
+      case 'neutral':
+        return 'triangle';
+      case 'bad':
+        return 'rectRot';
+      default:
+        return 'rect';
+    }
+  }
+
+  private resolveCountryColor(country: string): string {
+    const normalized = this.normalizeCountryBreakdownName(country);
+    if (normalized === 'Unknown') {
+      return '#94a3b8';
+    }
+
+    let hash = 0;
+    for (let index = 0; index < normalized.length; index++) {
+      hash = ((hash * 31) + normalized.charCodeAt(index)) >>> 0;
+    }
+
+    const hue = hash % 360;
+    const saturation = 66 + (hash % 18);
+    const lightness = 50 + (hash % 12);
+    return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
   }
 
   private updateAnonymitySummary(entries: JudgeValidProxy[]): void {

@@ -31,6 +31,13 @@
         </div>
       </div>
 
+      <div class="lg:col-span-3">
+        <div class="dashboard-skeleton-card">
+          <p-skeleton width="12rem" height="1rem"></p-skeleton>
+          <p-skeleton width="100%" height="21rem" class="mt-4"></p-skeleton>
+        </div>
+      </div>
+
       <div class="lg:col-span-2">
         <div class="dashboard-skeleton-card">
           <p-skeleton width="9rem" height="1rem"></p-skeleton>
@@ -135,6 +142,15 @@
           [refreshing]="proxyHistoryRefreshing()"
           (refresh)="onProxyHistoryRefresh()">
         </app-proxy-history-card>
+      </div>
+
+      <div class="lg:col-span-3">
+        <app-fastest-alive-proxies-card
+          [chartData]="fastestAliveScatterData()"
+          [chartOptions]="fastestAliveScatterOptions()"
+          [proxyCount]="fastestAliveProxyCount()"
+          [countryLegend]="fastestAliveCountryLegend()">
+        </app-fastest-alive-proxies-card>
       </div>
 
       <div class="lg:col-span-2">

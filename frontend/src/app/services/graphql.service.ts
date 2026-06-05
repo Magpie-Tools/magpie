@@ -41,6 +41,16 @@ const DASHBOARD_QUERY = `#graphql
         alive
         latestCheck
       }
+      fastestAliveProxies(limit: 100) {
+        id
+        ip
+        port
+        responseTime
+        country
+        reputationLabel
+        reputationScore
+        latestCheck
+      }
       proxyHistory(limit: 168) {
         count
         recordedAt
@@ -73,6 +83,7 @@ export interface DashboardViewer {
   proxyCount: number;
   proxyLimit: number | null;
   recentProxyChecks: RecentProxyCheck[];
+  fastestAliveProxies: FastestAliveProxy[];
   proxyHistory: ProxyHistoryEntry[];
   proxySnapshots: ProxySnapshots;
   scrapeSourceCount: number;
@@ -113,6 +124,17 @@ export interface RecentProxyCheck {
   port: number;
   responseTime: number;
   alive: boolean;
+  latestCheck?: string;
+}
+
+export interface FastestAliveProxy {
+  id: number;
+  ip: string;
+  port: number;
+  responseTime: number;
+  country: string;
+  reputationLabel: string;
+  reputationScore: number;
   latestCheck?: string;
 }
 

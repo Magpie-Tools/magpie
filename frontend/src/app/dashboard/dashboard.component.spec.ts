@@ -25,6 +25,7 @@ describe('DashboardComponent', () => {
         proxyCount: 0,
         proxyLimit: null,
         recentProxyChecks: [],
+        fastestAliveProxies: [],
         proxyHistory: [],
         proxySnapshots: {alive: [], scraped: []},
         scrapeSourceCount: 0

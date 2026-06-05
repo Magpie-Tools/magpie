@@ -1,0 +1,48 @@
+<p-card [class]="cardStyleClass">
+  <ng-template pTemplate="header">
+    <div class="fastest-alive-card__header p-3">
+      <div>
+        <h3 class="fastest-alive-card__title">Fastest Alive Proxies</h3>
+        <span class="fastest-alive-card__subtitle">{{ titleSuffix }}</span>
+      </div>
+
+      @if (proxyCount > 0) {
+        <div class="fastest-alive-card__shape-legend" aria-label="Reputation shape legend">
+          @for (entry of reputationLegend; track entry.label) {
+            <span class="shape-key">
+              <span [class]="entry.className"></span>
+              <span>{{ entry.label }}</span>
+            </span>
+          }
+        </div>
+      }
+    </div>
+  </ng-template>
+
+  @if (proxyCount > 0) {
+    <div class="fastest-alive-card__body">
+      <div class="fastest-alive-card__chart">
+        <p-chart
+          type="scatter"
+          [data]="chartData"
+          [options]="chartOptions">
+        </p-chart>
+      </div>
+
+      <aside class="fastest-alive-card__countries" aria-label="Country color legend">
+        @for (entry of countryLegend; track entry.country) {
+          <div class="country-key">
+            <span class="country-key__swatch" [ngStyle]="{'background': entry.color}"></span>
+            <span class="country-key__name">{{ entry.country }}</span>
+            <span class="country-key__count">{{ entry.count | number }}</span>
+          </div>
+        }
+      </aside>
+    </div>
+  } @else {
+    <div class="fastest-alive-card__empty">
+      <i class="pi pi-chart-scatter text-3xl text-neutral-600"></i>
+      <p>No alive proxy latency data yet.</p>
+    </div>
+  }
+</p-card>
