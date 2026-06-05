@@ -256,7 +256,14 @@ export class HttpService {
     return this.http.get<ScrapeSourceDetail>(`${this.apiUrl}/scrapingSources/${sourceId}`);
   }
 
-  getScrapeSourceProxyPage(sourceId: number, options?: { page?: number; rows?: number; search?: string; filters?: ProxyListFilters }) {
+  getScrapeSourceProxyPage(sourceId: number, options?: {
+    page?: number;
+    rows?: number;
+    search?: string;
+    filters?: ProxyListFilters;
+    sortField?: string | null;
+    sortOrder?: number | null;
+  }) {
     let params = new HttpParams();
 
     const page = options?.page && options.page > 0 ? options.page : 1;
@@ -268,6 +275,11 @@ export class HttpService {
 
     if (options?.search && options.search.trim().length > 0) {
       params = params.set('search', options.search.trim());
+    }
+
+    if (options?.sortField && options.sortOrder && options.sortOrder !== 0) {
+      params = params.set('sortField', options.sortField);
+      params = params.set('sortOrder', options.sortOrder === 1 ? 'asc' : 'desc');
     }
 
     params = this.appendProxyFilterParams(params, options?.filters);

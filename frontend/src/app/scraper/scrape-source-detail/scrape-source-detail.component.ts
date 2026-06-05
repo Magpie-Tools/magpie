@@ -77,6 +77,8 @@ export class ScrapeSourceDetailComponent implements OnInit, OnDestroy {
   proxyLoading = signal(false);
   proxyHasLoaded = signal(false);
   proxySearchTerm = signal('');
+  proxySortField = signal<string | null>(null);
+  proxySortOrder = signal<number | null>(null);
   filterPanelOpen = signal(false);
   filterOptionsLoaded = signal(false);
   filterOptions = signal<ProxyFilterOptions>({countries: [], types: [], anonymityLevels: []});
@@ -149,6 +151,8 @@ export class ScrapeSourceDetailComponent implements OnInit, OnDestroy {
       this.loadScrapeSourceDetail(id);
       this.proxyPage.set(1);
       this.proxySearchTerm.set('');
+      this.proxySortField.set(null);
+      this.proxySortOrder.set(null);
       this.proxyHasLoaded.set(false);
       this.proxies.set([]);
       this.proxyTotal.set(0);
@@ -339,10 +343,19 @@ export class ScrapeSourceDetailComponent implements OnInit, OnDestroy {
   }
 
   onProxyLazyLoad(event: TableLazyLoadEvent): void {
+    const previousSortField = this.proxySortField();
+    const previousSortOrder = this.proxySortOrder();
     const newPage = Math.floor((event.first ?? 0) / (event.rows ?? this.proxyPageSize())) + 1;
     const newPageSize = event.rows ?? this.proxyPageSize();
+    const nextSortOrder = event.sortOrder && event.sortOrder !== 0 ? event.sortOrder : null;
+    const nextSortField = nextSortOrder ? this.resolveProxySortField(event.sortField) : null;
 
+    const sortChanged = nextSortField !== previousSortField || nextSortOrder !== previousSortOrder;
     const shouldFetch = newPage !== this.proxyPage() || newPageSize !== this.proxyPageSize();
+
+    if (sortChanged) {
+      return;
+    }
 
     this.proxyPage.set(newPage);
     this.proxyPageSize.set(newPageSize);
@@ -350,6 +363,19 @@ export class ScrapeSourceDetailComponent implements OnInit, OnDestroy {
     if (shouldFetch) {
       this.loadProxyList();
     }
+  }
+
+  onProxySort(event: { field: string; order: number }): void {
+    const clickedSortField = this.resolveProxySortField(event.field);
+    const isResetClick = clickedSortField === this.proxySortField() && this.proxySortOrder() === -1 && event.order === 1;
+    const hasOrder = !isResetClick && event.order !== 0 && event.order !== undefined && event.order !== null;
+    const nextSortField = hasOrder ? clickedSortField : null;
+    const nextSortOrder = hasOrder ? event.order : null;
+
+    this.proxyPage.set(1);
+    this.proxySortField.set(nextSortField);
+    this.proxySortOrder.set(nextSortOrder);
+    this.loadProxyList();
   }
 
   onProxySearchTermChange(value: string): void {
@@ -496,6 +522,8 @@ export class ScrapeSourceDetailComponent implements OnInit, OnDestroy {
       rows: this.proxyPageSize(),
       search: this.proxySearchTerm(),
       filters: this.buildFilterPayload(this.appliedFilters()),
+      sortField: this.proxySortField(),
+      sortOrder: this.proxySortOrder(),
     }).subscribe({
       next: res => {
         this.proxies.set(res?.proxies ?? []);
@@ -559,6 +587,14 @@ export class ScrapeSourceDetailComponent implements OnInit, OnDestroy {
 
   private buildFilterPayload(filters: ProxyListAppliedFilters): ProxyListFilters | undefined {
     return buildProxyListFilterPayload(filters);
+  }
+
+  private resolveProxySortField(sortField: TableLazyLoadEvent['sortField']): string | null {
+    if (!sortField) {
+      return this.proxySortField() ?? null;
+    }
+
+    return Array.isArray(sortField) ? sortField[0] : sortField;
   }
 
   private syncColumnsFromSettings(settings: UserSettings | undefined): void {

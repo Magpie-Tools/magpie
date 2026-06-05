@@ -40,7 +40,7 @@
           </div>
         </div>
         <span
-          class="inline-flex items-center gap-2 px-3 py-1 text-xs font-semibold uppercase tracking-wide flex-shrink-0 ml-auto status-pill"
+          class="inline-flex items-center gap-2 px-3 py-1 text-xs font-semibold uppercase tracking-wide shrink-0 ml-auto status-pill"
           [ngClass]="healthPillClass"
         >
           <span class="status-dot" [ngClass]="healthDotClass"></span>
@@ -278,11 +278,14 @@
       [rowsPerPageOptions]="[20, 50]"
       [skeletonRows]="proxySkeletonRows"
       [selectionEnabled]="false"
-      [sortable]="false"
+      [sortable]="true"
+      [sortField]="proxySortField()"
+      [sortOrder]="proxySortOrder()"
       [columns]="displayedColumns()"
       [emptyReputationLabel]="'N/A'"
       [missingReputationScoreLabel]="'N/A'"
       (lazyLoad)="onProxyLazyLoad($event)"
+      (sort)="onProxySort($event)"
       (viewProxy)="onViewProxy($event)"
     ></app-proxy-table>
   </section>
