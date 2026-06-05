@@ -24,6 +24,8 @@ const (
 	maxViewerProxySnapshotLimit    = 720
 	defaultRecentProxyChecksLimit  = 8
 	maxRecentProxyChecksLimit      = 50
+	defaultFastestAliveProxyLimit  = 100
+	maxFastestAliveProxyLimit      = 100
 )
 
 func NewSchema() (gql.Schema, error) {
@@ -118,6 +120,20 @@ func NewSchema() (gql.Schema, error) {
 			"responseTime": &gql.Field{Type: gql.NewNonNull(gql.Int)},
 			"alive":        &gql.Field{Type: gql.NewNonNull(gql.Boolean)},
 			"latestCheck":  &gql.Field{Type: gql.DateTime},
+		},
+	})
+
+	fastestAliveProxyType := gql.NewObject(gql.ObjectConfig{
+		Name: "FastestAliveProxy",
+		Fields: gql.Fields{
+			"id":              &gql.Field{Type: gql.NewNonNull(gql.Int)},
+			"ip":              &gql.Field{Type: gql.NewNonNull(gql.String)},
+			"port":            &gql.Field{Type: gql.NewNonNull(gql.Int)},
+			"responseTime":    &gql.Field{Type: gql.NewNonNull(gql.Int)},
+			"country":         &gql.Field{Type: gql.NewNonNull(gql.String)},
+			"reputationLabel": &gql.Field{Type: gql.NewNonNull(gql.String)},
+			"reputationScore": &gql.Field{Type: gql.NewNonNull(gql.Float)},
+			"latestCheck":     &gql.Field{Type: gql.DateTime},
 		},
 	})
 
@@ -350,6 +366,22 @@ func NewSchema() (gql.Schema, error) {
 					return []map[string]interface{}{}, nil
 				},
 			},
+			"fastestAliveProxies": &gql.Field{
+				Type: gql.NewNonNull(gql.NewList(gql.NewNonNull(fastestAliveProxyType))),
+				Args: gql.FieldConfigArgument{
+					"limit": &gql.ArgumentConfig{Type: gql.Int},
+				},
+				Resolve: func(p gql.ResolveParams) (interface{}, error) {
+					limit := defaultFastestAliveProxyLimit
+					if raw, ok := p.Args["limit"].(int); ok && raw > 0 {
+						limit = clampPositiveLimit(raw, maxFastestAliveProxyLimit)
+					}
+					if data, ok := p.Source.(*viewerData); ok {
+						return buildFastestAliveProxies(data.user.ID, limit), nil
+					}
+					return []map[string]interface{}{}, nil
+				},
+			},
 			"proxySnapshots": &gql.Field{
 				Type: gql.NewNonNull(proxySnapshotCollectionType),
 				Args: gql.FieldConfigArgument{
@@ -551,6 +583,28 @@ func buildRecentProxyChecks(userID uint, limit int) []map[string]interface{} {
 			"responseTime": int(entry.ResponseTime),
 			"alive":        entry.Alive,
 			"latestCheck":  latestCheck,
+		})
+	}
+	return result
+}
+
+func buildFastestAliveProxies(userID uint, limit int) []map[string]interface{} {
+	entries := database.GetFastestAliveProxies(userID, limit)
+	result := make([]map[string]interface{}, 0, len(entries))
+	for _, entry := range entries {
+		var latestCheck interface{}
+		if !entry.LatestCheck.IsZero() {
+			latestCheck = entry.LatestCheck
+		}
+		result = append(result, map[string]interface{}{
+			"id":              int(entry.ID),
+			"ip":              entry.IP,
+			"port":            int(entry.Port),
+			"responseTime":    int(entry.ResponseTime),
+			"country":         entry.Country,
+			"reputationLabel": entry.ReputationLabel,
+			"reputationScore": float64(entry.ReputationScore),
+			"latestCheck":     latestCheck,
 		})
 	}
 	return result

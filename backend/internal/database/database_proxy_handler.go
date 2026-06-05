@@ -582,6 +582,78 @@ func GetRecentProxyChecks(userID uint, limit int) []dto.ProxyRecentCheck {
 	return result
 }
 
+func GetFastestAliveProxies(userID uint, limit int) []dto.ProxyFastestAlive {
+	if limit <= 0 {
+		return []dto.ProxyFastestAlive{}
+	}
+
+	latestAliveStats := DB.Table("proxy_latest_statistics pls").
+		Select("DISTINCT ON (pls.proxy_id) pls.proxy_id, pls.statistic_id, pls.checked_at").
+		Joins("JOIN proxy_statistics ps ON ps.id = pls.statistic_id").
+		Where("pls.alive = ?", true).
+		Order("pls.proxy_id, ps.response_time ASC, pls.checked_at DESC, pls.statistic_id DESC")
+
+	type fastestAliveProxyRow struct {
+		ID              uint64       `gorm:"column:id"`
+		IPEncrypted     string       `gorm:"column:ip_encrypted"`
+		Port            uint16       `gorm:"column:port"`
+		ResponseTime    uint16       `gorm:"column:response_time"`
+		Country         string       `gorm:"column:country"`
+		ReputationLabel string       `gorm:"column:reputation_label"`
+		ReputationScore float32      `gorm:"column:reputation_score"`
+		LatestCheck     sql.NullTime `gorm:"column:latest_check"`
+	}
+
+	rows := make([]fastestAliveProxyRow, 0, limit)
+	if err := DB.Model(&domain.Proxy{}).
+		Select(
+			"proxies.id AS id, "+
+				"proxies.ip AS ip_encrypted, "+
+				"proxies.port AS port, "+
+				"COALESCE(ps.response_time, 0) AS response_time, "+
+				"COALESCE(NULLIF(proxies.country, ''), 'N/A') AS country, "+
+				"LOWER(COALESCE(NULLIF(pr.label, ''), 'unknown')) AS reputation_label, "+
+				"COALESCE(pr.score, 0) AS reputation_score, "+
+				"latest.checked_at AS latest_check",
+		).
+		Joins("JOIN user_proxies up ON up.proxy_id = proxies.id AND up.user_id = ?", userID).
+		Joins("JOIN (?) AS latest ON latest.proxy_id = proxies.id", latestAliveStats).
+		Joins("JOIN proxy_statistics ps ON ps.id = latest.statistic_id").
+		Joins("LEFT JOIN proxy_reputations pr ON pr.proxy_id = proxies.id AND pr.kind = ?", domain.ProxyReputationKindOverall).
+		Order("ps.response_time ASC, latest.checked_at DESC, proxies.id ASC").
+		Limit(limit).
+		Scan(&rows).Error; err != nil {
+		return nil
+	}
+
+	result := make([]dto.ProxyFastestAlive, 0, len(rows))
+	for _, row := range rows {
+		ip, _, err := security.DecryptProxySecret(row.IPEncrypted)
+		if err != nil {
+			log.Errorf("decrypt fastest alive proxy ip: %v", err)
+			ip = ""
+		}
+
+		latestCheck := time.Time{}
+		if row.LatestCheck.Valid {
+			latestCheck = row.LatestCheck.Time
+		}
+
+		result = append(result, dto.ProxyFastestAlive{
+			ID:              row.ID,
+			IP:              ip,
+			Port:            row.Port,
+			ResponseTime:    row.ResponseTime,
+			Country:         row.Country,
+			ReputationLabel: row.ReputationLabel,
+			ReputationScore: row.ReputationScore,
+			LatestCheck:     latestCheck,
+		})
+	}
+
+	return result
+}
+
 func buildProxyHealthSubQuery(userId uint) *gorm.DB {
 	return DB.Table("proxy_latest_statistics pls").
 		Select(
