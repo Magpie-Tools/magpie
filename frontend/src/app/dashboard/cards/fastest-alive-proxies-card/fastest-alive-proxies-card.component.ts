@@ -1,5 +1,5 @@
 import {DecimalPipe, NgStyle} from '@angular/common';
-import {Component, Input} from '@angular/core';
+import {Component, EventEmitter, Input, Output} from '@angular/core';
 import {PrimeTemplate} from 'primeng/api';
 import {Card} from 'primeng/card';
 import {UIChart} from 'primeng/chart';
@@ -9,6 +9,8 @@ export interface FastestAliveProxyCountryLegend {
   color: string;
   count: number;
 }
+
+export type FastestAliveSortDirection = 'fastest-right' | 'fastest-left';
 
 @Component({
   selector: 'app-fastest-alive-proxies-card',
@@ -22,6 +24,8 @@ export class FastestAliveProxiesCardComponent {
   @Input({ required: true }) chartOptions!: any;
   @Input() proxyCount = 0;
   @Input() countryLegend: FastestAliveProxyCountryLegend[] = [];
+  @Input() sortDirection: FastestAliveSortDirection = 'fastest-right';
+  @Output() sortDirectionChange = new EventEmitter<FastestAliveSortDirection>();
 
   readonly cardStyleClass = 'chart-card bg-neutral-900 border border-neutral-800 fastest-alive-card';
   readonly reputationLegend = [
@@ -37,5 +41,19 @@ export class FastestAliveProxiesCardComponent {
     }
 
     return `${this.proxyCount} fastest alive`;
+  }
+
+  get sortLabel(): string {
+    return this.sortDirection === 'fastest-right' ? 'Fastest right' : 'Fastest left';
+  }
+
+  get sortIcon(): string {
+    return this.sortDirection === 'fastest-right' ? 'pi pi-arrow-down-right' : 'pi pi-arrow-down-left';
+  }
+
+  toggleSortDirection(): void {
+    this.sortDirectionChange.emit(
+      this.sortDirection === 'fastest-right' ? 'fastest-left' : 'fastest-right'
+    );
   }
 }

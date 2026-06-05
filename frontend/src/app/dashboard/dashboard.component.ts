@@ -54,6 +54,10 @@ interface ProxyLineI18n {
   tooltipLimitLabel: string;
 }
 
+type FastestAliveSortDirection = 'fastest-right' | 'fastest-left';
+
+const FASTEST_ALIVE_SORT_STORAGE_KEY = 'magpie.dashboard.fastestAliveSortDirection';
+
 @Component({
   selector: 'app-dashboard',
   templateUrl: './dashboard.component.html',
@@ -95,10 +99,12 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   proxyHistory = signal<ProxyCheck[]>([]);
 
+  fastestAliveProxies = signal<FastestAliveProxy[]>([]);
   fastestAliveProxyCount = signal(0);
   fastestAliveScatterData = signal<any>({});
   fastestAliveScatterOptions = signal<any>({});
   fastestAliveCountryLegend = signal<FastestAliveProxyCountryLegend[]>([]);
+  fastestAliveSortDirection = signal<FastestAliveSortDirection>(this.loadFastestAliveSortDirection());
 
   reputationBreakdown = signal<ReputationBreakdown>({ good: 0, neutral: 0, poor: 0, unknown: 0 });
   reputationChartData = signal<any>({});
@@ -374,6 +380,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   private updateFastestAliveScatter(proxies: FastestAliveProxy[]): void {
+    this.fastestAliveProxies.set(proxies);
+
     const prepared = proxies
       .filter((proxy) => Number.isFinite(proxy.responseTime) && proxy.responseTime >= 0)
       .map((proxy, index) => {
@@ -406,7 +414,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
       country,
       count: values.length,
       medianLatency: this.median(values)
-    })).sort((a, b) => a.medianLatency - b.medianLatency || b.count - a.count || a.country.localeCompare(b.country));
+    })).sort((a, b) => this.compareFastestAliveCountries(a, b));
 
     const countryIndex = new Map(countryOrder.map((entry, index) => [entry.country, index + 1]));
     const points = prepared.map((point) => {
@@ -455,6 +463,27 @@ export class DashboardComponent implements OnInit, OnDestroy {
     });
 
     this.fastestAliveScatterOptions.set(this.createFastestAliveScatterOptions(countryOrder.map((entry) => entry.country)));
+  }
+
+  onFastestAliveSortDirectionChange(direction: FastestAliveSortDirection): void {
+    if (direction === this.fastestAliveSortDirection()) {
+      return;
+    }
+
+    this.fastestAliveSortDirection.set(direction);
+    this.saveFastestAliveSortDirection(direction);
+    this.updateFastestAliveScatter(this.fastestAliveProxies());
+  }
+
+  private compareFastestAliveCountries(
+    a: { country: string; count: number; medianLatency: number },
+    b: { country: string; count: number; medianLatency: number }
+  ): number {
+    const latencySort = this.fastestAliveSortDirection() === 'fastest-right'
+      ? b.medianLatency - a.medianLatency
+      : a.medianLatency - b.medianLatency;
+
+    return latencySort || b.count - a.count || a.country.localeCompare(b.country);
   }
 
   private createFastestAliveScatterOptions(countries: string[]): Record<string, unknown> {
@@ -572,6 +601,41 @@ export class DashboardComponent implements OnInit, OnDestroy {
       return label;
     }
     return `${label.slice(0, 11)}...`;
+  }
+
+  private loadFastestAliveSortDirection(): FastestAliveSortDirection {
+    const storage = this.getStorage();
+    if (!storage) {
+      return 'fastest-right';
+    }
+
+    try {
+      const stored = storage.getItem(FASTEST_ALIVE_SORT_STORAGE_KEY);
+      return stored === 'fastest-left' || stored === 'fastest-right' ? stored : 'fastest-right';
+    } catch {
+      return 'fastest-right';
+    }
+  }
+
+  private saveFastestAliveSortDirection(direction: FastestAliveSortDirection): void {
+    const storage = this.getStorage();
+    if (!storage) {
+      return;
+    }
+
+    try {
+      storage.setItem(FASTEST_ALIVE_SORT_STORAGE_KEY, direction);
+    } catch {
+      // Ignore storage access failures and keep the in-memory selection.
+    }
+  }
+
+  private getStorage(): Storage | null {
+    if (typeof window === 'undefined' || !window?.localStorage) {
+      return null;
+    }
+
+    return window.localStorage;
   }
 
   private normalizeReputationLabel(label: string | undefined | null): string {

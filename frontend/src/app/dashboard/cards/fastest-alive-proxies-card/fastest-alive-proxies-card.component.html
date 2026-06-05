@@ -7,13 +7,25 @@
       </div>
 
       @if (proxyCount > 0) {
-        <div class="fastest-alive-card__shape-legend" aria-label="Reputation shape legend">
-          @for (entry of reputationLegend; track entry.label) {
-            <span class="shape-key">
-              <span [class]="entry.className"></span>
-              <span>{{ entry.label }}</span>
-            </span>
-          }
+        <div class="fastest-alive-card__tools">
+          <button
+            type="button"
+            class="sort-toggle"
+            [attr.aria-label]="'Latency direction: ' + sortLabel"
+            [title]="sortLabel"
+            (click)="toggleSortDirection()">
+            <i [class]="sortIcon"></i>
+            <span>{{ sortLabel }}</span>
+          </button>
+
+          <div class="fastest-alive-card__shape-legend" aria-label="Reputation shape legend">
+            @for (entry of reputationLegend; track entry.label) {
+              <span class="shape-key">
+                <span [class]="entry.className"></span>
+                <span>{{ entry.label }}</span>
+              </span>
+            }
+          </div>
         </div>
       }
     </div>

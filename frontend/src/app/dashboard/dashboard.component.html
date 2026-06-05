@@ -144,15 +144,6 @@
         </app-proxy-history-card>
       </div>
 
-      <div class="lg:col-span-3">
-        <app-fastest-alive-proxies-card
-          [chartData]="fastestAliveScatterData()"
-          [chartOptions]="fastestAliveScatterOptions()"
-          [proxyCount]="fastestAliveProxyCount()"
-          [countryLegend]="fastestAliveCountryLegend()">
-        </app-fastest-alive-proxies-card>
-      </div>
-
       <div class="lg:col-span-2">
         <app-proxies-per-country-card
           [countries]="majorCountries()">
@@ -164,6 +155,17 @@
           [data]="judgeTrafficData()"
           [periodOptions]="judgePeriodOptions">
         </app-judge-by-percentage-card>
+      </div>
+
+      <div class="lg:col-span-3">
+        <app-fastest-alive-proxies-card
+          [chartData]="fastestAliveScatterData()"
+          [chartOptions]="fastestAliveScatterOptions()"
+          [proxyCount]="fastestAliveProxyCount()"
+          [countryLegend]="fastestAliveCountryLegend()"
+          [sortDirection]="fastestAliveSortDirection()"
+          (sortDirectionChange)="onFastestAliveSortDirectionChange($event)">
+        </app-fastest-alive-proxies-card>
       </div>
 
       <div class="lg:col-span-2">
