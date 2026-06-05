@@ -141,6 +141,8 @@ func getScrapeSourceProxies(w http.ResponseWriter, r *http.Request) {
 	}
 
 	search := strings.TrimSpace(r.URL.Query().Get("search"))
+	sortField := strings.TrimSpace(r.URL.Query().Get("sortField"))
+	sortOrder := strings.TrimSpace(r.URL.Query().Get("sortOrder"))
 
 	status := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("status")))
 	if status != "alive" && status != "dead" {
@@ -163,7 +165,12 @@ func getScrapeSourceProxies(w http.ResponseWriter, r *http.Request) {
 		ReputationLabels: normalizeQueryList(r.URL.Query()["reputation"]),
 	}
 
-	proxies, total, dbErr := database.GetScrapeSiteProxyPage(userID, sourceID, page, pageSize, search, filters)
+	proxies, total, dbErr := database.GetScrapeSiteProxyPageWithOptions(userID, sourceID, page, pageSize, search, filters, database.ProxyPageQueryOptions{
+		IncludeHealth:     true,
+		IncludeReputation: true,
+		SortField:         sortField,
+		SortOrder:         sortOrder,
+	})
 	if dbErr != nil {
 		log.Error("error retrieving scrape source proxies", "error", dbErr.Error(), "scrape_source_id", sourceID)
 		writeError(w, "Failed to retrieve scrape source proxies", http.StatusInternalServerError)

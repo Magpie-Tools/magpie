@@ -518,6 +518,13 @@ func GetScrapeSiteDetail(userId uint, scrapeSiteId uint64) (*dto.ScrapeSiteDetai
 }
 
 func GetScrapeSiteProxyPage(userId uint, scrapeSiteId uint64, page int, pageSize int, search string, filters dto.ProxyListFilters) ([]dto.ProxyInfo, int64, error) {
+	return GetScrapeSiteProxyPageWithOptions(userId, scrapeSiteId, page, pageSize, search, filters, ProxyPageQueryOptions{
+		IncludeHealth:     true,
+		IncludeReputation: true,
+	})
+}
+
+func GetScrapeSiteProxyPageWithOptions(userId uint, scrapeSiteId uint64, page int, pageSize int, search string, filters dto.ProxyListFilters, options ProxyPageQueryOptions) ([]dto.ProxyInfo, int64, error) {
 	if scrapeSiteId == 0 {
 		return []dto.ProxyInfo{}, 0, nil
 	}
@@ -527,6 +534,8 @@ func GetScrapeSiteProxyPage(userId uint, scrapeSiteId uint64, page int, pageSize
 	if pageSize <= 0 || pageSize > maxProxiesPerPage {
 		pageSize = proxiesPerPage
 	}
+
+	options = normalizeProxyPageQueryOptions(options)
 
 	subQuery := DB.Model(&domain.ProxyStatistic{}).
 		Select("DISTINCT ON (proxy_id) *").
@@ -556,8 +565,13 @@ func GetScrapeSiteProxyPage(userId uint, scrapeSiteId uint64, page int, pageSize
 		Joins("LEFT JOIN (?) AS ps ON ps.proxy_id = proxies.id", subQuery).
 		Joins("LEFT JOIN proxy_overall_statuses pos ON pos.proxy_id = proxies.id").
 		Joins("LEFT JOIN (?) AS stats ON stats.proxy_id = proxies.id", healthSubQuery).
-		Joins("LEFT JOIN anonymity_levels al ON al.id = ps.level_id").
-		Order("alive DESC, latest_check DESC")
+		Joins("LEFT JOIN anonymity_levels al ON al.id = ps.level_id")
+
+	if options.SortField == "reputation" {
+		query = query.Joins("LEFT JOIN proxy_reputations pr_overall ON pr_overall.proxy_id = proxies.id AND pr_overall.kind = ?", domain.ProxyReputationKindOverall)
+	}
+
+	query = applyProxyPageSort(query, options)
 
 	filterQuery := buildProxyListFilterQuery(userId, filters)
 	if filterQuery != nil {
@@ -575,7 +589,9 @@ func GetScrapeSiteProxyPage(userId uint, scrapeSiteId uint64, page int, pageSize
 		}
 
 		proxies := proxyInfoRowsToDTO(rows)
-		attachReputationsToProxyInfos(proxies)
+		if options.IncludeReputation {
+			attachReputationsToProxyInfos(proxies)
+		}
 
 		var total int64
 		countQuery := DB.Model(&domain.Proxy{}).
@@ -597,7 +613,9 @@ func GetScrapeSiteProxyPage(userId uint, scrapeSiteId uint64, page int, pageSize
 	}
 
 	proxies := proxyInfoRowsToDTO(rows)
-	attachReputationsToProxyInfos(proxies)
+	if options.IncludeReputation {
+		attachReputationsToProxyInfos(proxies)
+	}
 	filtered := filterProxiesBySearch(proxies, normalizedSearch)
 	total := int64(len(filtered))
 	start := (page - 1) * pageSize
@@ -611,7 +629,9 @@ func GetScrapeSiteProxyPage(userId uint, scrapeSiteId uint64, page int, pageSize
 	}
 
 	pageSlice := filtered[start:end]
-	attachReputationsToProxyInfos(pageSlice)
+	if options.IncludeReputation {
+		attachReputationsToProxyInfos(pageSlice)
+	}
 
 	return pageSlice, total, nil
 }
