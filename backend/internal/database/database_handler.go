@@ -173,6 +173,7 @@ func defaultMigrations() []any {
 		domain.Proxy{},
 		domain.BlacklistedIP{},
 		domain.BlacklistedRange{},
+		domain.AbuseIPDBCheck{},
 		domain.ProxyReputation{},
 		domain.UserProxy{},
 		domain.ProxyDailyCheck{},

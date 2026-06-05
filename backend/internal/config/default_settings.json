@@ -96,6 +96,16 @@
         "minutes": 0,
         "seconds": 0
       }
+    },
+    "abuseipdb": {
+      "enabled": false,
+      "api_key": "",
+      "max_age_in_days": 30,
+      "daily_limit": 0,
+      "daily_remaining": 0,
+      "daily_reset_at": "",
+      "last_checked_at": "",
+      "last_error": ""
     }
   },
 

@@ -30,6 +30,7 @@ type proxyReputationInput struct {
 	EstimatedType string
 	FailureStreak uint16
 	Samples       map[string][]reputationSample
+	AbuseIPDB     *domain.AbuseIPDBCheck
 }
 
 type reputationSample struct {
@@ -87,7 +88,7 @@ func recalculateProxyReputationsBatch(ctx context.Context, proxyIDs []uint64) er
 	reputations := make([]domain.ProxyReputation, 0, len(proxyIDs)*3)
 
 	for _, input := range inputs {
-		if len(input.Samples) == 0 {
+		if len(input.Samples) == 0 && input.AbuseIPDB == nil {
 			continue
 		}
 
@@ -116,7 +117,7 @@ func recalculateProxyReputationsBatch(ctx context.Context, proxyIDs []uint64) er
 			}
 		}
 
-		if len(perProtocolResults) == 0 {
+		if len(perProtocolResults) == 0 && input.AbuseIPDB == nil {
 			continue
 		}
 
@@ -205,6 +206,19 @@ func loadProxyReputationInputs(ctx context.Context, proxyIDs []uint64) (map[uint
 			proto = reputationDefaultProtocol
 		}
 		input.Samples[proto] = append(input.Samples[proto], sample)
+	}
+
+	var abuseRows []domain.AbuseIPDBCheck
+	if err := db.
+		Where("proxy_id IN ?", proxyIDs).
+		Find(&abuseRows).Error; err != nil {
+		return nil, fmt.Errorf("load abuseipdb checks for reputation: %w", err)
+	}
+	for i := range abuseRows {
+		row := abuseRows[i]
+		if input, ok := inputs[row.ProxyID]; ok {
+			input.AbuseIPDB = &row
+		}
 	}
 
 	return inputs, nil
@@ -325,12 +339,39 @@ func buildOverallReputation(input *proxyReputationInput, summaries map[string]pr
 	for _, samples := range input.Samples {
 		allSamples = append(allSamples, samples...)
 	}
-	if len(allSamples) == 0 {
+	if len(allSamples) == 0 && input.AbuseIPDB == nil {
 		return nil, nil
 	}
 
 	metrics := buildMetrics(allSamples, input)
 	result := reputation.Score(metrics, now, nil)
+	finalScore := result.Score
+	abuseSignals := map[string]any(nil)
+	if input.AbuseIPDB != nil {
+		abuseScore := clampReputationScore(100 - float64(input.AbuseIPDB.AbuseConfidenceScore))
+		if len(allSamples) == 0 {
+			finalScore = abuseScore
+		} else {
+			finalScore = clampReputationScore(result.Score*0.2 + abuseScore*0.8)
+		}
+		abuseSignals = map[string]any{
+			"abuse_confidence_score": input.AbuseIPDB.AbuseConfidenceScore,
+			"reputation_score":       abuseScore,
+			"checked_at":             input.AbuseIPDB.CheckedAt,
+			"total_reports":          input.AbuseIPDB.TotalReports,
+			"num_distinct_users":     input.AbuseIPDB.NumDistinctUsers,
+			"usage_type":             input.AbuseIPDB.UsageType,
+			"isp":                    input.AbuseIPDB.ISP,
+			"domain":                 input.AbuseIPDB.Domain,
+			"country_code":           input.AbuseIPDB.CountryCode,
+			"is_whitelisted":         input.AbuseIPDB.IsWhitelisted,
+			"is_tor":                 input.AbuseIPDB.IsTor,
+			"weight":                 0.8,
+		}
+		if input.AbuseIPDB.LastReportedAt != nil {
+			abuseSignals["last_reported_at"] = *input.AbuseIPDB.LastReportedAt
+		}
+	}
 
 	components := make(map[string]any, len(summaries))
 	for proto, summary := range summaries {
@@ -346,6 +387,9 @@ func buildOverallReputation(input *proxyReputationInput, summaries map[string]pr
 		"components": components,
 		"combined":   result.Signals,
 	}
+	if abuseSignals != nil {
+		signals["abuseipdb"] = abuseSignals
+	}
 
 	payload, err := json.Marshal(signals)
 	if err != nil {
@@ -355,11 +399,32 @@ func buildOverallReputation(input *proxyReputationInput, summaries map[string]pr
 	return &domain.ProxyReputation{
 		ProxyID:      input.ProxyID,
 		Kind:         domain.ProxyReputationKindOverall,
-		Score:        float32(result.Score),
-		Label:        result.Label,
+		Score:        float32(finalScore),
+		Label:        reputationLabelFromScore(finalScore),
 		Signals:      payload,
 		CalculatedAt: now,
 	}, nil
+}
+
+func clampReputationScore(score float64) float64 {
+	if score < 0 {
+		return 0
+	}
+	if score > 100 {
+		return 100
+	}
+	return score
+}
+
+func reputationLabelFromScore(score float64) string {
+	switch {
+	case score >= 80:
+		return "good"
+	case score >= 40:
+		return "neutral"
+	default:
+		return "poor"
+	}
 }
 
 func upsertProxyReputations(ctx context.Context, reputations []domain.ProxyReputation) error {

@@ -170,6 +170,7 @@ func Setup(ctx context.Context) error {
 	go maintenance.StartOrphanCleanupRoutine(ctx)
 	go maintenance.StartPasswordResetCleanupRoutine(ctx)
 	go jobruntime.StartGeoLiteUpdateRoutine(ctx)
+	go jobruntime.StartAbuseIPDBRoutine(ctx)
 	go jobruntime.StartEmailDeliveryRoutine(ctx)
 	go jobruntime.StartEmailDeliveryMaintenanceRoutine(ctx)
 	go blacklist.StartRefreshRoutine(ctx)

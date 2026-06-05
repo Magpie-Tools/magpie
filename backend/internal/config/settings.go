@@ -87,7 +87,8 @@ type ProxyLimitConfig struct {
 }
 
 type PluginConfig struct {
-	GeoLite GeoLitePluginConfig `json:"geolite"`
+	GeoLite   GeoLitePluginConfig   `json:"geolite"`
+	AbuseIPDB AbuseIPDBPluginConfig `json:"abuseipdb"`
 }
 
 type GeoLitePluginConfig struct {
@@ -96,6 +97,17 @@ type GeoLitePluginConfig struct {
 	AutoUpdate    bool   `json:"auto_update"`
 	UpdateTimer   Timer  `json:"update_timer"`
 	LastUpdatedAt string `json:"last_updated_at,omitempty"`
+}
+
+type AbuseIPDBPluginConfig struct {
+	Enabled        bool   `json:"enabled"`
+	APIKey         string `json:"api_key"`
+	MaxAgeInDays   uint32 `json:"max_age_in_days"`
+	DailyLimit     int    `json:"daily_limit"`
+	DailyRemaining int    `json:"daily_remaining"`
+	DailyResetAt   string `json:"daily_reset_at,omitempty"`
+	LastCheckedAt  string `json:"last_checked_at,omitempty"`
+	LastError      string `json:"last_error,omitempty"`
 }
 
 const settingsFilePath = "data/settings.json"
@@ -195,6 +207,17 @@ func MarkGeoLiteUpdated(ts time.Time) error {
 	return UpdateGeoLiteConfig(func(cfg *Config) {
 		cfg.Plugins.GeoLite.LastUpdatedAt = ts.UTC().Format(time.RFC3339)
 	})
+}
+
+func UpdateAbuseIPDBStatus(updater func(cfg *Config)) error {
+	if updater == nil {
+		return errors.New("config: abuseipdb updater cannot be nil")
+	}
+
+	cfg := GetConfig()
+	updater(&cfg)
+
+	return applyConfigUpdate(cfg, configUpdateOptions{persistToFile: true, broadcast: true, source: "abuseipdb"})
 }
 
 type configUpdateOptions struct {
@@ -306,6 +329,13 @@ func normalizeThreadSettings(cfg *Config) {
 	scraperMaxThreads := cfg.Scraper.MaxThreads
 	cfg.Scraper.Threads = clampThreadCount(scraperThreads)
 	cfg.Scraper.MaxThreads = normalizeMaxThreads(scraperMaxThreads, scraperThreads, defaultThreadFallback, maxThreadSettingLimit)
+
+	if cfg.Plugins.AbuseIPDB.MaxAgeInDays == 0 {
+		cfg.Plugins.AbuseIPDB.MaxAgeInDays = 30
+	}
+	if cfg.Plugins.AbuseIPDB.MaxAgeInDays > 365 {
+		cfg.Plugins.AbuseIPDB.MaxAgeInDays = 365
+	}
 }
 
 func normalizeMaxThreads(maxThreads uint32, threads uint32, fallback uint32, cap uint32) uint32 {
@@ -344,6 +374,16 @@ func applyLegacyDefaults(raw []byte, cfg *Config) {
 		UpdateTimer   Timer  `json:"update_timer"`
 		LastUpdatedAt string `json:"last_updated_at,omitempty"`
 	}
+	type rawAbuseIPDBPluginConfig struct {
+		Enabled        *bool  `json:"enabled"`
+		APIKey         string `json:"api_key"`
+		MaxAgeInDays   uint32 `json:"max_age_in_days"`
+		DailyLimit     int    `json:"daily_limit"`
+		DailyRemaining int    `json:"daily_remaining"`
+		DailyResetAt   string `json:"daily_reset_at,omitempty"`
+		LastCheckedAt  string `json:"last_checked_at,omitempty"`
+		LastError      string `json:"last_error,omitempty"`
+	}
 	normalizeGeoLite := func(rawCfg *rawGeoLitePluginConfig, defaultEnabled bool) (GeoLitePluginConfig, bool) {
 		if rawCfg == nil {
 			return GeoLitePluginConfig{}, false
@@ -366,7 +406,8 @@ func applyLegacyDefaults(raw []byte, cfg *Config) {
 			SaveResponses *bool `json:"save_responses"`
 		} `json:"checker"`
 		Plugins struct {
-			GeoLite *rawGeoLitePluginConfig `json:"geolite"`
+			GeoLite   *rawGeoLitePluginConfig   `json:"geolite"`
+			AbuseIPDB *rawAbuseIPDBPluginConfig `json:"abuseipdb"`
 		} `json:"plugins"`
 		LegacyGeoLite *rawGeoLitePluginConfig `json:"geolite"`
 	}
@@ -383,6 +424,25 @@ func applyLegacyDefaults(raw []byte, cfg *Config) {
 	}
 	if geolite, ok := normalizeGeoLite(partial.Plugins.GeoLite, false); ok {
 		cfg.Plugins.GeoLite = geolite
+	}
+	if partial.Plugins.AbuseIPDB != nil {
+		enabled := false
+		if partial.Plugins.AbuseIPDB.Enabled != nil {
+			enabled = *partial.Plugins.AbuseIPDB.Enabled
+		}
+		cfg.Plugins.AbuseIPDB = AbuseIPDBPluginConfig{
+			Enabled:        enabled,
+			APIKey:         partial.Plugins.AbuseIPDB.APIKey,
+			MaxAgeInDays:   partial.Plugins.AbuseIPDB.MaxAgeInDays,
+			DailyLimit:     partial.Plugins.AbuseIPDB.DailyLimit,
+			DailyRemaining: partial.Plugins.AbuseIPDB.DailyRemaining,
+			DailyResetAt:   partial.Plugins.AbuseIPDB.DailyResetAt,
+			LastCheckedAt:  partial.Plugins.AbuseIPDB.LastCheckedAt,
+			LastError:      partial.Plugins.AbuseIPDB.LastError,
+		}
+	}
+	if cfg.Plugins.AbuseIPDB.MaxAgeInDays == 0 {
+		cfg.Plugins.AbuseIPDB.MaxAgeInDays = 30
 	}
 }
 
