@@ -109,7 +109,7 @@ all via a web dashboard.
 
       The first user who registers becomes admin automatically.
 
-For geo lookups, create a [MaxMind GeoLite2 account](https://dev.maxmind.com/geoip/geolite2-free-geolocation-data) and generate a License Key. Enter it in the dashboard (Admin → Other) to enable automatic database downloads and updates.
+Optional integrations, including geolocation and advanced reputation checks, can be enabled and configured under Admin -> Plugins.
 
 ### Updating
 Use the helper scripts that match how you installed Magpie.
