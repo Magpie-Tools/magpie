@@ -80,10 +80,18 @@ func runOrphanCleanup(ctx context.Context) {
 		proxyRemoved = removed
 	}
 
+	sourceLinkCleanupSucceeded := false
 	if removed, err := database.DeleteOrphanProxyScrapeSiteRelations(ctx); err != nil {
 		log.Error("Failed to cleanup orphan proxy scrape-source links", "error", err)
 	} else {
 		sourceLinkRemoved = removed
+		sourceLinkCleanupSucceeded = true
+	}
+
+	if sourceLinkCleanupSucceeded {
+		if err := database.ValidateProxyScrapeSiteCascadeConstraints(ctx); err != nil {
+			log.Error("Failed to validate proxy scrape-source cascade constraints", "error", err)
+		}
 	}
 
 	if removed, err := database.DeleteOrphanScrapeSites(ctx); err != nil {

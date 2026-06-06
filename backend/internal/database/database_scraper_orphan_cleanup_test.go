@@ -15,7 +15,7 @@ func TestDeleteOrphanProxyScrapeSiteRelations(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&domain.Proxy{}, &domain.ProxyScrapeSite{}); err != nil {
+	if err := db.AutoMigrate(&domain.Proxy{}, &domain.ScrapeSite{}, &domain.ProxyScrapeSite{}); err != nil {
 		t.Fatalf("migrate schema: %v", err)
 	}
 
@@ -29,10 +29,14 @@ func TestDeleteOrphanProxyScrapeSiteRelations(t *testing.T) {
 	if err := db.Create(&proxy).Error; err != nil {
 		t.Fatalf("create proxy: %v", err)
 	}
+	source := domain.ScrapeSite{ID: 10, URL: "https://example.com/proxies"}
+	if err := db.Create(&source).Error; err != nil {
+		t.Fatalf("create source: %v", err)
+	}
 	links := []domain.ProxyScrapeSite{
 		{ProxyID: 1, ScrapeSiteID: 10},
 		{ProxyID: 2, ScrapeSiteID: 10},
-		{ProxyID: 2, ScrapeSiteID: 11},
+		{ProxyID: 1, ScrapeSiteID: 11},
 	}
 	if err := db.Create(&links).Error; err != nil {
 		t.Fatalf("create source links: %v", err)
@@ -50,7 +54,7 @@ func TestDeleteOrphanProxyScrapeSiteRelations(t *testing.T) {
 	if err := db.Find(&remaining).Error; err != nil {
 		t.Fatalf("load remaining source links: %v", err)
 	}
-	if len(remaining) != 1 || remaining[0].ProxyID != 1 {
-		t.Fatalf("remaining links = %#v, want proxy 1 only", remaining)
+	if len(remaining) != 1 || remaining[0].ProxyID != 1 || remaining[0].ScrapeSiteID != 10 {
+		t.Fatalf("remaining links = %#v, want proxy 1/source 10 only", remaining)
 	}
 }

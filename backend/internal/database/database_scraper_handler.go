@@ -657,12 +657,15 @@ func DeleteOrphanProxyScrapeSiteRelations(ctx context.Context) (int64, error) {
 
 	if !isPostgresDialect(db) {
 		result := db.
-			Where("NOT EXISTS (SELECT 1 FROM proxies p WHERE p.id = proxy_scrape_site.proxy_id)").
+			Where(
+				"NOT EXISTS (SELECT 1 FROM proxies p WHERE p.id = proxy_scrape_site.proxy_id) OR " +
+					"NOT EXISTS (SELECT 1 FROM scrape_sites s WHERE s.id = proxy_scrape_site.scrape_site_id)",
+			).
 			Delete(&domain.ProxyScrapeSite{})
 		return result.RowsAffected, result.Error
 	}
 
-	const orphanProxyBatchSize = 5_000
+	const orphanRelationBatchSize = 5_000
 	var total int64
 	for {
 		result := db.Exec(`
@@ -678,7 +681,32 @@ func DeleteOrphanProxyScrapeSiteRelations(ctx context.Context) (int64, error) {
 			DELETE FROM proxy_scrape_site AS pss
 			USING orphan_proxy_ids AS orphan
 			WHERE pss.proxy_id = orphan.proxy_id
-		`, orphanProxyBatchSize)
+		`, orphanRelationBatchSize)
+		if result.Error != nil {
+			return total, result.Error
+		}
+
+		total += result.RowsAffected
+		if result.RowsAffected == 0 {
+			break
+		}
+	}
+
+	for {
+		result := db.Exec(`
+			WITH orphan_source_ids AS (
+				SELECT pss.scrape_site_id
+				FROM proxy_scrape_site AS pss
+				LEFT JOIN scrape_sites AS s ON s.id = pss.scrape_site_id
+				WHERE s.id IS NULL
+				GROUP BY pss.scrape_site_id
+				ORDER BY pss.scrape_site_id
+				LIMIT ?
+			)
+			DELETE FROM proxy_scrape_site AS pss
+			USING orphan_source_ids AS orphan
+			WHERE pss.scrape_site_id = orphan.scrape_site_id
+		`, orphanRelationBatchSize)
 		if result.Error != nil {
 			return total, result.Error
 		}
