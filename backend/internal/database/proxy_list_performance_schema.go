@@ -21,14 +21,20 @@ func ensureProxyListPerformanceSchema(db *gorm.DB) error {
 			`ALTER TABLE proxy_latest_statistics ADD COLUMN IF NOT EXISTS response_time integer`,
 			`ALTER TABLE proxy_latest_statistics ADD COLUMN IF NOT EXISTS attempt smallint`,
 			`ALTER TABLE proxy_latest_statistics ADD COLUMN IF NOT EXISTS level_id bigint`,
+			`ALTER TABLE proxy_latest_statistics ADD COLUMN IF NOT EXISTS judge_id bigint`,
 			`UPDATE proxy_latest_statistics AS pls
 			 SET response_time = ps.response_time,
 			     attempt = ps.attempt,
-			     level_id = ps.level_id
+			     level_id = ps.level_id,
+			     judge_id = ps.judge_id
 			 FROM proxy_statistics AS ps
 			 WHERE ps.id = pls.statistic_id
 			   AND ps.created_at = pls.checked_at
-			   AND (pls.response_time IS NULL OR pls.attempt IS NULL)`,
+			   AND (
+			       pls.response_time IS NULL OR
+			       pls.attempt IS NULL OR
+			       pls.judge_id IS NULL
+			   )`,
 		}
 		for _, stmt := range stmts {
 			if err := db.Exec(stmt).Error; err != nil {

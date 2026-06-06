@@ -10,6 +10,7 @@ type ProxyLatestStatistic struct {
 	ResponseTime uint16
 	Attempt      uint8
 	LevelID      *int
+	JudgeID      uint
 	CheckedAt    time.Time `gorm:"not null;index"`
 
 	// Relationships

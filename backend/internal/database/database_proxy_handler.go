@@ -590,10 +590,9 @@ func GetFastestAliveProxies(userID uint, limit int) []dto.ProxyFastestAlive {
 	}
 
 	latestAliveStats := DB.Table("proxy_latest_statistics pls").
-		Select("DISTINCT ON (pls.proxy_id) pls.proxy_id, pls.statistic_id, pls.checked_at").
-		Joins("JOIN proxy_statistics ps ON ps.id = pls.statistic_id").
+		Select("DISTINCT ON (pls.proxy_id) pls.proxy_id, pls.response_time, pls.checked_at").
 		Where("pls.alive = ?", true).
-		Order("pls.proxy_id, ps.response_time ASC, pls.checked_at DESC, pls.statistic_id DESC")
+		Order("pls.proxy_id, pls.response_time ASC, pls.checked_at DESC, pls.statistic_id DESC")
 
 	type fastestAliveProxyRow struct {
 		ID              uint64       `gorm:"column:id"`
@@ -612,7 +611,7 @@ func GetFastestAliveProxies(userID uint, limit int) []dto.ProxyFastestAlive {
 			"proxies.id AS id, "+
 				"proxies.ip AS ip_encrypted, "+
 				"proxies.port AS port, "+
-				"COALESCE(ps.response_time, 0) AS response_time, "+
+				"COALESCE(latest.response_time, 0) AS response_time, "+
 				"COALESCE(NULLIF(proxies.country, ''), 'N/A') AS country, "+
 				"LOWER(COALESCE(NULLIF(pr.label, ''), 'unknown')) AS reputation_label, "+
 				"COALESCE(pr.score, 0) AS reputation_score, "+
@@ -620,9 +619,8 @@ func GetFastestAliveProxies(userID uint, limit int) []dto.ProxyFastestAlive {
 		).
 		Joins("JOIN user_proxies up ON up.proxy_id = proxies.id AND up.user_id = ?", userID).
 		Joins("JOIN (?) AS latest ON latest.proxy_id = proxies.id", latestAliveStats).
-		Joins("JOIN proxy_statistics ps ON ps.id = latest.statistic_id").
 		Joins("LEFT JOIN proxy_reputations pr ON pr.proxy_id = proxies.id AND pr.kind = ?", domain.ProxyReputationKindOverall).
-		Order("ps.response_time ASC, latest.checked_at DESC, proxies.id ASC").
+		Order("latest.response_time ASC, latest.checked_at DESC, proxies.id ASC").
 		Limit(limit).
 		Scan(&rows).Error; err != nil {
 		return nil

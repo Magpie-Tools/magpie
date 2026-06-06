@@ -67,6 +67,7 @@ func latestProxyStatusEntries(stats []domain.ProxyStatistic) ([]domain.ProxyLate
 			ResponseTime: stat.ResponseTime,
 			Attempt:      stat.Attempt,
 			LevelID:      stat.LevelID,
+			JudgeID:      stat.JudgeID,
 			CheckedAt:    checkedAt,
 		}
 
@@ -121,6 +122,7 @@ func upsertProxyLatestStatistics(tx *gorm.DB, entries []domain.ProxyLatestStatis
 			"response_time": gorm.Expr("excluded.response_time"),
 			"attempt":       gorm.Expr("excluded.attempt"),
 			"level_id":      gorm.Expr("excluded.level_id"),
+			"judge_id":      gorm.Expr("excluded.judge_id"),
 			"checked_at":    gorm.Expr("excluded.checked_at"),
 			"updated_at":    gorm.Expr("CURRENT_TIMESTAMP"),
 		}),

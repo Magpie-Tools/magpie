@@ -10,6 +10,7 @@ import (
 func TestLatestProxyStatusEntriesCopiesListSummaryFields(t *testing.T) {
 	checkedAt := time.Date(2026, time.June, 6, 12, 30, 0, 0, time.UTC)
 	levelID := 3
+	judgeID := uint(9)
 
 	entries, proxyIDs := latestProxyStatusEntries([]domain.ProxyStatistic{
 		{
@@ -20,6 +21,7 @@ func TestLatestProxyStatusEntriesCopiesListSummaryFields(t *testing.T) {
 			ResponseTime: 315,
 			Attempt:      4,
 			LevelID:      &levelID,
+			JudgeID:      judgeID,
 			CreatedAt:    checkedAt,
 		},
 	})
@@ -43,6 +45,9 @@ func TestLatestProxyStatusEntriesCopiesListSummaryFields(t *testing.T) {
 	}
 	if entry.LevelID == nil || *entry.LevelID != levelID {
 		t.Fatalf("level ID = %v, want %d", entry.LevelID, levelID)
+	}
+	if entry.JudgeID != judgeID {
+		t.Fatalf("judge ID = %d, want %d", entry.JudgeID, judgeID)
 	}
 	if !entry.CheckedAt.Equal(checkedAt) {
 		t.Fatalf("checked at = %v, want %v", entry.CheckedAt, checkedAt)

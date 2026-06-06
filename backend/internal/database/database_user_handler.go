@@ -344,23 +344,13 @@ func GetDashboardInfo(userid uint) dto.DashboardInfo {
 	info.TotalChecks = checks.TotalChecks
 	info.TotalChecksWeek = checks.TotalChecksWeek
 
-	type scrapeCounts struct {
-		TotalScraped     int64 `gorm:"column:total_scraped"`
-		TotalScrapedWeek int64 `gorm:"column:total_scraped_week"`
+	scrapedSnapshot := getProxySnapshotCountSummary(userid, domain.ProxySnapshotMetricScraped, weekAgo)
+	if scrapedSnapshot.Found {
+		info.TotalScraped = scrapedSnapshot.Current
+		info.TotalScrapedWeek = scrapedSnapshot.Increase
+	} else {
+		info.TotalScraped = GetCurrentScrapedProxyCount(userid)
 	}
-
-	var scraped scrapeCounts
-	DB.Table("proxy_scrape_site AS ps").
-		Select(
-			"COUNT(*) AS total_scraped, "+
-				"COALESCE(SUM(CASE WHEN ps.created_at >= ? THEN 1 ELSE 0 END), 0) AS total_scraped_week",
-			weekAgo,
-		).
-		Joins("JOIN user_proxies up ON up.proxy_id = ps.proxy_id").
-		Where("up.user_id = ?", userid).
-		Scan(&scraped)
-	info.TotalScraped = scraped.TotalScraped
-	info.TotalScrapedWeek = scraped.TotalScrapedWeek
 
 	// 5) Country breakdown – latest known country per proxy assigned to the user
 	type countryCount struct {
@@ -406,12 +396,11 @@ func GetDashboardInfo(userid uint) dto.DashboardInfo {
 				"SUM(CASE WHEN al.name = 'anonymous' THEN 1 ELSE 0 END)   AS anonymous_proxies, "+
 				"SUM(CASE WHEN al.name = 'transparent' THEN 1 ELSE 0 END) AS transparent_proxies",
 		).
-		Joins("JOIN proxy_statistics ps ON ps.id = pls.statistic_id").
 		Joins("JOIN user_proxies up ON up.proxy_id = pls.proxy_id AND up.user_id = ?", userid).
-		Joins("JOIN user_judges uj ON uj.judge_id = ps.judge_id AND uj.user_id = ?", userid).
-		Joins("JOIN judges j ON j.id = ps.judge_id").
-		Joins("JOIN anonymity_levels al ON al.id = ps.level_id").
-		Where("ps.alive = TRUE").
+		Joins("JOIN user_judges uj ON uj.judge_id = pls.judge_id AND uj.user_id = ?", userid).
+		Joins("JOIN judges j ON j.id = pls.judge_id").
+		Joins("JOIN anonymity_levels al ON al.id = pls.level_id").
+		Where("pls.alive = TRUE").
 		Group("j.id, j.full_string").
 		Scan(&tmp)
 

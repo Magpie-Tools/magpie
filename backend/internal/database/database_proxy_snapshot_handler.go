@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"magpie/internal/api/dto"
 	"magpie/internal/domain"
@@ -152,9 +153,9 @@ func scrapedProxyCountByUser(tx *gorm.DB, userIDs []uint) (map[uint]int64, error
 	}
 
 	if err := tx.Table("user_proxies AS up").
-		Select("up.user_id AS user_id, COUNT(DISTINCT ps.proxy_id) AS scraped_count").
-		Joins("JOIN proxy_scrape_site ps ON ps.proxy_id = up.proxy_id").
+		Select("up.user_id AS user_id, COUNT(*) AS scraped_count").
 		Where("up.user_id IN ?", userIDs).
+		Where("EXISTS (SELECT 1 FROM proxy_scrape_site ps WHERE ps.proxy_id = up.proxy_id)").
 		Group("up.user_id").
 		Scan(&rows).Error; err != nil {
 		return nil, fmt.Errorf("proxy snapshot: aggregate scraped counts: %w", err)
@@ -184,4 +185,57 @@ func GetCurrentAliveProxyCount(userID uint) int64 {
 	}
 
 	return counts[userID]
+}
+
+func GetCurrentScrapedProxyCount(userID uint) int64 {
+	if DB == nil {
+		return 0
+	}
+
+	counts, err := scrapedProxyCountByUser(DB, []uint{userID})
+	if err != nil {
+		return 0
+	}
+
+	return counts[userID]
+}
+
+type proxySnapshotCountSummary struct {
+	Current  int64
+	Increase int64
+	Found    bool
+}
+
+func getProxySnapshotCountSummary(userID uint, metric string, since time.Time) proxySnapshotCountSummary {
+	if DB == nil || userID == 0 {
+		return proxySnapshotCountSummary{}
+	}
+
+	var latest domain.ProxySnapshot
+	latestResult := DB.
+		Where("user_id = ? AND metric = ?", userID, metric).
+		Order("created_at DESC, id DESC").
+		Limit(1).
+		Find(&latest)
+	if latestResult.Error != nil || latestResult.RowsAffected == 0 {
+		return proxySnapshotCountSummary{}
+	}
+
+	var baseline domain.ProxySnapshot
+	baselineResult := DB.
+		Where("user_id = ? AND metric = ? AND created_at >= ?", userID, metric, since).
+		Order("created_at ASC, id ASC").
+		Limit(1).
+		Find(&baseline)
+
+	increase := int64(0)
+	if baselineResult.Error == nil && baselineResult.RowsAffected > 0 && latest.Count > baseline.Count {
+		increase = latest.Count - baseline.Count
+	}
+
+	return proxySnapshotCountSummary{
+		Current:  latest.Count,
+		Increase: increase,
+		Found:    true,
+	}
 }
