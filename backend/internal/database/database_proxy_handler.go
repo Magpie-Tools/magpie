@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"magpie/internal/api/dto"
@@ -35,9 +36,18 @@ const (
 
 	defaultRecentProxyChecksLimit = 8
 	maxRecentProxyChecksLimit     = 50
+	dashboardFastestAliveLimit    = 100
 )
 
 var ErrNoProxiesSelected = errors.New("no proxies selected for deletion")
+
+type dashboardProxyListCacheKey struct {
+	UserID uint
+	Limit  int
+}
+
+var dashboardRecentChecksCache sync.Map
+var dashboardFastestAliveCache sync.Map
 
 type ProxyPageQueryOptions struct {
 	IncludeHealth     bool
@@ -528,7 +538,20 @@ func GetRecentProxyChecks(userID uint, limit int) []dto.ProxyRecentCheck {
 		limit = maxRecentProxyChecksLimit
 	}
 
-	latestStats := buildLatestProxyStatisticSubQuery()
+	key := dashboardProxyListCacheKey{UserID: userID, Limit: limit}
+	if cached, ok := dashboardRecentChecksCache.Load(key); ok {
+		return cached.([]dto.ProxyRecentCheck)
+	}
+
+	return RefreshRecentProxyChecksCache(userID, limit)
+}
+
+func RefreshRecentProxyChecksCache(userID uint, limit int) []dto.ProxyRecentCheck {
+	if limit <= 0 {
+		limit = defaultRecentProxyChecksLimit
+	} else if limit > maxRecentProxyChecksLimit {
+		limit = maxRecentProxyChecksLimit
+	}
 
 	type recentProxyCheckRow struct {
 		ID           uint64       `gorm:"column:id"`
@@ -540,21 +563,42 @@ func GetRecentProxyChecks(userID uint, limit int) []dto.ProxyRecentCheck {
 	}
 
 	rows := make([]recentProxyCheckRow, 0, limit)
-	if err := DB.Model(&domain.Proxy{}).
-		Select(
-			"proxies.id AS id, "+
-				"proxies.ip AS ip_encrypted, "+
-				"proxies.port AS port, "+
-				"COALESCE(ps.response_time, 0) AS response_time, "+
-				"COALESCE(pos.overall_alive, false) AS alive, "+
-				"COALESCE(pos.last_checked_at, ps.created_at) AS latest_check",
-		).
-		Joins("JOIN user_proxies up ON up.proxy_id = proxies.id AND up.user_id = ?", userID).
-		Joins("LEFT JOIN (?) AS ps ON ps.proxy_id = proxies.id", latestStats).
-		Joins("LEFT JOIN proxy_overall_statuses pos ON pos.proxy_id = proxies.id").
-		Order("alive DESC, latest_check DESC").
-		Limit(limit).
-		Scan(&rows).Error; err != nil {
+	const query = `
+WITH candidates AS (
+	SELECT
+		p.id,
+		p.ip AS ip_encrypted,
+		p.port,
+		COALESCE(pos.overall_alive, FALSE) AS alive,
+		pos.last_checked_at
+	FROM user_proxies up
+	JOIN proxies p ON p.id = up.proxy_id
+	LEFT JOIN proxy_overall_statuses pos ON pos.proxy_id = p.id
+	WHERE up.user_id = ?
+	ORDER BY
+		COALESCE(pos.overall_alive, FALSE) DESC,
+		pos.last_checked_at DESC NULLS LAST,
+		p.id ASC
+	LIMIT ?
+)
+SELECT
+	c.id,
+	c.ip_encrypted,
+	c.port,
+	COALESCE(latest.response_time, 0) AS response_time,
+	c.alive,
+	COALESCE(c.last_checked_at, latest.checked_at) AS latest_check
+FROM candidates c
+LEFT JOIN LATERAL (
+	SELECT pls.response_time, pls.checked_at
+	FROM proxy_latest_statistics pls
+	WHERE pls.proxy_id = c.id
+	ORDER BY pls.checked_at DESC, pls.statistic_id DESC
+	LIMIT 1
+) latest ON TRUE
+ORDER BY c.alive DESC, latest_check DESC, c.id ASC
+`
+	if err := DB.Raw(query, userID, limit).Scan(&rows).Error; err != nil {
 		return nil
 	}
 
@@ -581,10 +625,27 @@ func GetRecentProxyChecks(userID uint, limit int) []dto.ProxyRecentCheck {
 		})
 	}
 
+	dashboardRecentChecksCache.Store(
+		dashboardProxyListCacheKey{UserID: userID, Limit: limit},
+		result,
+	)
 	return result
 }
 
 func GetFastestAliveProxies(userID uint, limit int) []dto.ProxyFastestAlive {
+	if limit <= 0 {
+		return []dto.ProxyFastestAlive{}
+	}
+
+	key := dashboardProxyListCacheKey{UserID: userID, Limit: limit}
+	if cached, ok := dashboardFastestAliveCache.Load(key); ok {
+		return cached.([]dto.ProxyFastestAlive)
+	}
+
+	return RefreshFastestAliveProxiesCache(userID, limit)
+}
+
+func RefreshFastestAliveProxiesCache(userID uint, limit int) []dto.ProxyFastestAlive {
 	if limit <= 0 {
 		return []dto.ProxyFastestAlive{}
 	}
@@ -651,6 +712,10 @@ func GetFastestAliveProxies(userID uint, limit int) []dto.ProxyFastestAlive {
 		})
 	}
 
+	dashboardFastestAliveCache.Store(
+		dashboardProxyListCacheKey{UserID: userID, Limit: limit},
+		result,
+	)
 	return result
 }
 

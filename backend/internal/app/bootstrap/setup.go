@@ -158,9 +158,17 @@ func Setup(ctx context.Context) error {
 	}
 	go rotatingproxy.GlobalManager.StartSyncLoop(ctx, time.Duration(syncIntervalSeconds)*time.Second)
 
+	dashboardCacheStart := time.Now()
+	if err := database.RefreshDashboardCaches(ctx); err != nil {
+		log.Warn("Dashboard cache prewarm failed; first request may be slower", "error", err)
+	} else {
+		log.Info("Dashboard caches prewarmed", "duration", time.Since(dashboardCacheStart))
+	}
+
 	// Routines
 
 	go judges.StartJudgeRoutine(ctx)
+	go jobruntime.StartDashboardCacheRoutine(ctx)
 	go jobruntime.StartProxyStatisticsRoutine(ctx)
 	go jobruntime.StartProxyStatisticsRetentionRoutine(ctx)
 	go jobruntime.StartProxyTimelineRetentionRoutine(ctx)

@@ -1,7 +1,10 @@
 package database
 
 import (
+	"context"
+	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -14,6 +17,12 @@ import (
 	"magpie/internal/security"
 	"magpie/internal/support"
 )
+
+type dashboardInfoCacheEntry struct {
+	info dto.DashboardInfo
+}
+
+var dashboardInfoCache sync.Map
 
 func GetUserFromId(id uint) domain.User {
 	var users domain.User
@@ -329,22 +338,164 @@ func GetUserJudgesWithRegex(userid uint) ([]domain.JudgeWithRegex, error) {
 }
 
 func GetDashboardInfo(userid uint) dto.DashboardInfo {
-	var info dto.DashboardInfo
-	// cut‑off for “this week”
+	if cached, ok := dashboardInfoCache.Load(userid); ok {
+		return cached.(dashboardInfoCacheEntry).info
+	}
+
+	return RefreshDashboardInfoCache(userid)
+}
+
+func RefreshDashboardInfoCache(userid uint) dto.DashboardInfo {
+	info := loadDashboardInfo(userid)
+	dashboardInfoCache.Store(userid, dashboardInfoCacheEntry{
+		info: info,
+	})
+	return info
+}
+
+func RefreshDashboardCaches(ctx context.Context) error {
+	if DB == nil {
+		return fmt.Errorf("dashboard cache: database connection was not initialised")
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	var userIDs []uint
+	if err := DB.WithContext(ctx).Model(&domain.User{}).Order("id").Pluck("id", &userIDs).Error; err != nil {
+		return fmt.Errorf("dashboard cache: load user ids: %w", err)
+	}
+
+	for _, userID := range userIDs {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			RefreshDashboardInfoCache(userID)
+			RefreshRecentProxyChecksCache(userID, defaultRecentProxyChecksLimit)
+			RefreshFastestAliveProxiesCache(userID, dashboardFastestAliveLimit)
+		}
+	}
+	return nil
+}
+
+func loadDashboardInfo(userid uint) dto.DashboardInfo {
 	weekAgo := time.Now().AddDate(0, 0, -7)
 
-	checks, err := loadDashboardCheckCounts(userid, weekAgo)
-	if err != nil {
+	type countryCount struct {
+		Country string `gorm:"column:country"`
+		Count   uint   `gorm:"column:count"`
+	}
+
+	type jvp struct {
+		JudgeUrl           string `json:"judge_url"`
+		EliteProxies       uint   `json:"elite_proxies"`
+		AnonymousProxies   uint   `json:"anonymous_proxies"`
+		TransparentProxies uint   `json:"transparent_proxies"`
+	}
+	type reputationCount struct {
+		Label string `gorm:"column:label"`
+		Count uint   `gorm:"column:count"`
+	}
+
+	type topProxyRow struct {
+		ProxyID uint64  `gorm:"column:proxy_id"`
+		IP      string  `gorm:"column:ip"`
+		Port    uint    `gorm:"column:port"`
+		Score   float32 `gorm:"column:score"`
+		Label   string  `gorm:"column:label"`
+	}
+
+	var (
+		checks          dashboardCheckCounts
+		scrapedSnapshot proxySnapshotCountSummary
+		countries       []countryCount
+		judges          []jvp
+		repCounts       []reputationCount
+		topRow          topProxyRow
+		topRowFound     bool
+		wg              sync.WaitGroup
+	)
+
+	wg.Add(6)
+	go func() {
+		defer wg.Done()
+		var err error
+		checks, err = loadDashboardCheckCounts(userid, weekAgo)
+		if err == nil {
+			return
+		}
+
 		log.Error("dashboard: failed to load pre-aggregated check counts", "user_id", userid, "error", err)
 		checks, err = loadDashboardCheckCountsDirect(userid, weekAgo)
 		if err != nil {
 			log.Error("dashboard: failed to load fallback check counts", "user_id", userid, "error", err)
 		}
-	}
+	}()
+
+	go func() {
+		defer wg.Done()
+		scrapedSnapshot = getProxySnapshotCountSummary(userid, domain.ProxySnapshotMetricScraped, weekAgo)
+	}()
+
+	go func() {
+		defer wg.Done()
+		const countryExpr = "CASE WHEN proxies.country IS NULL OR TRIM(proxies.country) = '' OR LOWER(TRIM(proxies.country)) IN ('n/a', 'unknown', 'unk') THEN 'Unknown' ELSE TRIM(proxies.country) END"
+		DB.Model(&domain.Proxy{}).
+			Select(countryExpr+" AS country, COUNT(*) AS count").
+			Joins("JOIN user_proxies up ON up.proxy_id = proxies.id AND up.user_id = ?", userid).
+			Group(countryExpr).
+			Order("count DESC, country ASC").
+			Scan(&countries)
+	}()
+
+	go func() {
+		defer wg.Done()
+		DB.Table("proxy_latest_statistics pls").
+			Select(
+				"j.full_string AS judge_url, "+
+					"SUM(CASE WHEN al.name = 'elite' THEN 1 ELSE 0 END)       AS elite_proxies, "+
+					"SUM(CASE WHEN al.name = 'anonymous' THEN 1 ELSE 0 END)   AS anonymous_proxies, "+
+					"SUM(CASE WHEN al.name = 'transparent' THEN 1 ELSE 0 END) AS transparent_proxies",
+			).
+			Joins("JOIN user_proxies up ON up.proxy_id = pls.proxy_id AND up.user_id = ?", userid).
+			Joins("JOIN user_judges uj ON uj.judge_id = pls.judge_id AND uj.user_id = ?", userid).
+			Joins("JOIN judges j ON j.id = pls.judge_id").
+			Joins("JOIN anonymity_levels al ON al.id = pls.level_id").
+			Where("pls.alive = TRUE").
+			Group("j.id, j.full_string").
+			Scan(&judges)
+	}()
+
+	go func() {
+		defer wg.Done()
+		DB.Table("proxy_reputations AS pr").
+			Select("LOWER(COALESCE(NULLIF(pr.label, ''), 'unknown')) AS label, COUNT(*) AS count").
+			Joins("JOIN user_proxies up ON up.proxy_id = pr.proxy_id AND up.user_id = ?", userid).
+			Where("pr.kind = ?", domain.ProxyReputationKindOverall).
+			Group("label").
+			Scan(&repCounts)
+	}()
+
+	go func() {
+		defer wg.Done()
+		result := DB.Table("proxy_reputations AS pr").
+			Select("pr.proxy_id, pr.score, pr.label, p.ip, p.port").
+			Joins("JOIN user_proxies up ON up.proxy_id = pr.proxy_id AND up.user_id = ?", userid).
+			Joins("JOIN proxies p ON p.id = pr.proxy_id").
+			Where("pr.kind = ?", domain.ProxyReputationKindOverall).
+			Order("pr.score DESC, pr.proxy_id ASC").
+			Limit(1).
+			Scan(&topRow)
+		topRowFound = result.Error == nil && result.RowsAffected > 0 && topRow.ProxyID != 0
+	}()
+
+	wg.Wait()
+
+	var info dto.DashboardInfo
 	info.TotalChecks = checks.TotalChecks
 	info.TotalChecksWeek = checks.TotalChecksWeek
 
-	scrapedSnapshot := getProxySnapshotCountSummary(userid, domain.ProxySnapshotMetricScraped, weekAgo)
 	if scrapedSnapshot.Found {
 		info.TotalScraped = scrapedSnapshot.Current
 		info.TotalScrapedWeek = scrapedSnapshot.Increase
@@ -352,60 +503,17 @@ func GetDashboardInfo(userid uint) dto.DashboardInfo {
 		info.TotalScraped = GetCurrentScrapedProxyCount(userid)
 	}
 
-	// 5) Country breakdown – latest known country per proxy assigned to the user
-	type countryCount struct {
-		Country string `gorm:"column:country"`
-		Count   uint   `gorm:"column:count"`
-	}
-
-	var countries []countryCount
-
-	const countryExpr = "CASE WHEN proxies.country IS NULL OR TRIM(proxies.country) = '' OR LOWER(TRIM(proxies.country)) IN ('n/a', 'unknown', 'unk') THEN 'Unknown' ELSE TRIM(proxies.country) END"
-
-	DB.Model(&domain.Proxy{}).
-		Select(countryExpr+" AS country, COUNT(*) AS count").
-		Joins("JOIN user_proxies up ON up.proxy_id = proxies.id AND up.user_id = ?", userid).
-		Group(countryExpr).
-		Order("count DESC, country ASC").
-		Scan(&countries)
-
 	for _, row := range countries {
-		country := normalizeDashboardCountry(row.Country)
 		info.CountryBreakdown = append(info.CountryBreakdown, struct {
 			Country string `json:"country"`
 			Count   uint   `json:"count"`
 		}{
-			Country: country,
+			Country: normalizeDashboardCountry(row.Country),
 			Count:   row.Count,
 		})
 	}
 
-	// 6) JudgeValidProxies – one row per judge, with counts by anonymity level
-	type jvp struct {
-		JudgeUrl           string `json:"judge_url"`
-		EliteProxies       uint   `json:"elite_proxies"`
-		AnonymousProxies   uint   `json:"anonymous_proxies"`
-		TransparentProxies uint   `json:"transparent_proxies"`
-	}
-	var tmp []jvp
-
-	DB.Table("proxy_latest_statistics pls").
-		Select(
-			"j.full_string AS judge_url, "+
-				"SUM(CASE WHEN al.name = 'elite' THEN 1 ELSE 0 END)       AS elite_proxies, "+
-				"SUM(CASE WHEN al.name = 'anonymous' THEN 1 ELSE 0 END)   AS anonymous_proxies, "+
-				"SUM(CASE WHEN al.name = 'transparent' THEN 1 ELSE 0 END) AS transparent_proxies",
-		).
-		Joins("JOIN user_proxies up ON up.proxy_id = pls.proxy_id AND up.user_id = ?", userid).
-		Joins("JOIN user_judges uj ON uj.judge_id = pls.judge_id AND uj.user_id = ?", userid).
-		Joins("JOIN judges j ON j.id = pls.judge_id").
-		Joins("JOIN anonymity_levels al ON al.id = pls.level_id").
-		Where("pls.alive = TRUE").
-		Group("j.id, j.full_string").
-		Scan(&tmp)
-
-	// assign into the dto struct
-	for _, row := range tmp {
+	for _, row := range judges {
 		info.JudgeValidProxies = append(info.JudgeValidProxies, struct {
 			JudgeUrl           string `json:"judge_url"`
 			EliteProxies       uint   `json:"elite_proxies"`
@@ -418,21 +526,6 @@ func GetDashboardInfo(userid uint) dto.DashboardInfo {
 			TransparentProxies: row.TransparentProxies,
 		})
 	}
-
-	// 7) Reputation breakdown (good / neutral / poor / unknown)
-	type reputationCount struct {
-		Label string `gorm:"column:label"`
-		Count uint   `gorm:"column:count"`
-	}
-
-	var repCounts []reputationCount
-
-	DB.Table("proxy_reputations AS pr").
-		Select("LOWER(COALESCE(NULLIF(pr.label, ''), 'unknown')) AS label, COUNT(*) AS count").
-		Joins("JOIN user_proxies up ON up.proxy_id = pr.proxy_id AND up.user_id = ?", userid).
-		Where("pr.kind = ?", domain.ProxyReputationKindOverall).
-		Group("label").
-		Scan(&repCounts)
 
 	for _, row := range repCounts {
 		switch row.Label {
@@ -447,27 +540,7 @@ func GetDashboardInfo(userid uint) dto.DashboardInfo {
 		}
 	}
 
-	// 8) Best overall reputation proxy
-	type topProxyRow struct {
-		ProxyID uint64  `gorm:"column:proxy_id"`
-		IP      string  `gorm:"column:ip"`
-		Port    uint    `gorm:"column:port"`
-		Score   float32 `gorm:"column:score"`
-		Label   string  `gorm:"column:label"`
-	}
-
-	var topRow topProxyRow
-
-	topResult := DB.Table("proxy_reputations AS pr").
-		Select("pr.proxy_id, pr.score, pr.label, p.ip, p.port").
-		Joins("JOIN user_proxies up ON up.proxy_id = pr.proxy_id AND up.user_id = ?", userid).
-		Joins("JOIN proxies p ON p.id = pr.proxy_id").
-		Where("pr.kind = ?", domain.ProxyReputationKindOverall).
-		Order("pr.score DESC, pr.proxy_id ASC").
-		Limit(1).
-		Scan(&topRow)
-
-	if topResult.Error == nil && topResult.RowsAffected > 0 && topRow.ProxyID != 0 {
+	if topRowFound {
 		ip := topRow.IP
 		if ip != "" {
 			plain, _, err := security.DecryptProxySecret(ip)

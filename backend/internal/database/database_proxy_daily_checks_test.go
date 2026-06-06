@@ -39,6 +39,20 @@ func TestDashboardCheckCountsFollowCurrentProxyOwnership(t *testing.T) {
 		}
 	}
 
+	currentDay := startOfUTCDay(time.Now().UTC())
+	if err := db.Exec(
+		`INSERT INTO proxy_daily_checks (proxy_id, day, checks_count, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
+		1, currentDay, 2, time.Now().UTC(), time.Now().UTC(),
+	).Error; err != nil {
+		t.Fatalf("insert current proxy_daily_checks: %v", err)
+	}
+	for i := 0; i < 2; i++ {
+		ts := currentDay.Add(time.Duration(i+1) * time.Hour)
+		if err := db.Exec(`INSERT INTO proxy_statistics (proxy_id, created_at) VALUES (?, ?)`, 1, ts).Error; err != nil {
+			t.Fatalf("insert current proxy_statistics row %d: %v", i, err)
+		}
+	}
+
 	weekAgo := time.Now().UTC().AddDate(0, 0, -7)
 
 	user1Daily, err := queryDashboardCheckCountsFromDaily(1, weekAgo)
@@ -61,8 +75,11 @@ func TestDashboardCheckCountsFollowCurrentProxyOwnership(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadDashboardCheckCountsDirect user2: %v", err)
 	}
-	if user2Daily.TotalChecks != 3 || user2Direct.TotalChecks != 3 {
-		t.Fatalf("user2 totals = daily:%d direct:%d, want 3/3", user2Daily.TotalChecks, user2Direct.TotalChecks)
+	if user2Daily.TotalChecks != 5 || user2Direct.TotalChecks != 5 {
+		t.Fatalf("user2 totals = daily:%d direct:%d, want 5/5", user2Daily.TotalChecks, user2Direct.TotalChecks)
+	}
+	if user2Daily.TotalChecksWeek != 2 || user2Direct.TotalChecksWeek != 2 {
+		t.Fatalf("user2 weekly totals = daily:%d direct:%d, want 2/2", user2Daily.TotalChecksWeek, user2Direct.TotalChecksWeek)
 	}
 }
 

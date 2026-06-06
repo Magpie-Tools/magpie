@@ -2,6 +2,7 @@ package database
 
 import (
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -23,7 +24,11 @@ type dailyCheckAggregationKey struct {
 }
 
 const proxyDailyBackfillAdvisoryLockBase int64 = 941_843_229_900
-const proxyDailyBackfillBatchSize = 5000
+
+const (
+	proxyDailyBackfillBatchSize  = 500
+	proxyDailyBackfillStartDelay = 2 * time.Second
+)
 
 var proxyDailyBackfillInFlight sync.Map
 
@@ -62,6 +67,12 @@ func incrementProxyDailyChecks(tx *gorm.DB, statistics []domain.ProxyStatistic) 
 			ChecksCount: count,
 		})
 	}
+	sort.Slice(entries, func(i, j int) bool {
+		if entries[i].ProxyID == entries[j].ProxyID {
+			return entries[i].Day.Before(entries[j].Day)
+		}
+		return entries[i].ProxyID < entries[j].ProxyID
+	})
 
 	if err := tx.Clauses(clause.OnConflict{
 		Columns: []clause.Column{
@@ -84,9 +95,11 @@ func loadDashboardCheckCounts(userID uint, weekAgo time.Time) (dashboardCheckCou
 		return dashboardCheckCounts{}, nil
 	}
 
-	queueProxyDailyChecksBackfill(userID)
-
-	return queryDashboardCheckCountsFromDaily(userID, weekAgo)
+	counts, err := queryDashboardCheckCountsFromDaily(userID, weekAgo)
+	if err == nil {
+		queueProxyDailyChecksBackfill(userID)
+	}
+	return counts, err
 }
 
 func queueProxyDailyChecksBackfill(userID uint) {
@@ -101,22 +114,30 @@ func queueProxyDailyChecksBackfill(userID uint) {
 	go func() {
 		defer proxyDailyBackfillInFlight.Delete(userID)
 
-		if err := ensureProxyDailyChecksBackfilled(userID); err != nil {
+		timer := time.NewTimer(proxyDailyBackfillStartDelay)
+		defer timer.Stop()
+		<-timer.C
+
+		if _, err := ensureProxyDailyChecksBackfilled(userID); err != nil {
 			log.Warn("dashboard: async daily check backfill failed", "user_id", userID, "error", err)
 		}
 	}()
 }
 
-func ensureProxyDailyChecksBackfilled(userID uint) error {
+func ensureProxyDailyChecksBackfilled(userID uint) (bool, error) {
 	if DB == nil || userID == 0 {
-		return nil
+		return false, nil
 	}
 
-	return DB.Transaction(func(tx *gorm.DB) error {
+	processed := false
+	err := DB.Transaction(func(tx *gorm.DB) error {
 		if tx.Dialector.Name() == "postgres" {
-			lockKey := proxyDailyBackfillAdvisoryLockBase + int64(userID)
-			if err := tx.Exec("SELECT pg_advisory_xact_lock(?)", lockKey).Error; err != nil {
+			var acquired bool
+			if err := tx.Raw("SELECT pg_try_advisory_xact_lock(?)", proxyDailyBackfillAdvisoryLockBase).Scan(&acquired).Error; err != nil {
 				return fmt.Errorf("daily checks: acquire backfill lock: %w", err)
+			}
+			if !acquired {
+				return nil
 			}
 		}
 
@@ -128,7 +149,7 @@ func ensureProxyDailyChecksBackfilled(userID uint) error {
 			return nil
 		}
 
-		if err := backfillProxyDailyChecksForProxyIDsTx(tx, missingProxyIDs); err != nil {
+		if err := backfillProxyDailyChecksForProxyIDsTx(tx, missingProxyIDs, startOfUTCDay(time.Now())); err != nil {
 			return err
 		}
 
@@ -136,8 +157,10 @@ func ensureProxyDailyChecksBackfilled(userID uint) error {
 			return err
 		}
 
+		processed = true
 		return nil
 	})
+	return processed, err
 }
 
 func loadUserProxyIDsMissingBackfill(tx *gorm.DB, userID uint) ([]uint64, error) {
@@ -149,6 +172,8 @@ func loadUserProxyIDsMissingBackfill(tx *gorm.DB, userID uint) ([]uint64, error)
 		Select("up.proxy_id").
 		Joins("LEFT JOIN proxy_daily_check_proxy_backfills b ON b.proxy_id = up.proxy_id").
 		Where("up.user_id = ? AND b.proxy_id IS NULL", userID).
+		Order("up.proxy_id").
+		Limit(proxyDailyBackfillBatchSize).
 		Scan(&rows).Error; err != nil {
 		return nil, fmt.Errorf("daily checks: load missing proxy backfills: %w", err)
 	}
@@ -199,41 +224,44 @@ func markProxyDailyChecksBackfilled(tx *gorm.DB, proxyIDs []uint64) error {
 
 func queryDashboardCheckCountsFromDaily(userID uint, weekAgo time.Time) (dashboardCheckCounts, error) {
 	var counts dashboardCheckCounts
+	todayStart := startOfUTCDay(time.Now())
+	cutoff := weekAgo.UTC()
+	cutoffDayStart := startOfUTCDay(cutoff)
+	nextDayStart := cutoffDayStart.Add(24 * time.Hour)
+
 	err := DB.Table("proxy_daily_checks pdc").
-		Select("COALESCE(SUM(pdc.checks_count), 0) AS total_checks").
+		Select(
+			"COALESCE(SUM(pdc.checks_count), 0) AS total_checks, "+
+				"COALESCE(SUM(CASE WHEN pdc.day >= ? THEN pdc.checks_count ELSE 0 END), 0) AS total_checks_week",
+			nextDayStart,
+		).
 		Joins("JOIN user_proxies up ON up.proxy_id = pdc.proxy_id AND up.user_id = ?", userID).
+		Where("pdc.day < ?", todayStart).
 		Scan(&counts).Error
 	if err != nil {
 		return dashboardCheckCounts{}, err
 	}
 
-	cutoff := weekAgo.UTC()
-	cutoffDayStart := startOfUTCDay(cutoff)
-	nextDayStart := cutoffDayStart.Add(24 * time.Hour)
-
-	var fullDayWeek int64
-	err = DB.Table("proxy_daily_checks pdc").
-		Select(
-			"COALESCE(SUM(pdc.checks_count), 0)",
-		).
-		Joins("JOIN user_proxies up ON up.proxy_id = pdc.proxy_id AND up.user_id = ?", userID).
-		Where("pdc.day >= ?", nextDayStart).
-		Scan(&fullDayWeek).Error
-	if err != nil {
-		return dashboardCheckCounts{}, err
+	var boundaryCounts struct {
+		PartialCutoffDay int64 `gorm:"column:partial_cutoff_day"`
+		CurrentDay       int64 `gorm:"column:current_day"`
 	}
-
-	var partialCutoffDay int64
 	err = DB.Table("proxy_statistics ps").
-		Select("COUNT(*)").
+		Select(
+			"COALESCE(SUM(CASE WHEN ps.created_at < ? THEN 1 ELSE 0 END), 0) AS partial_cutoff_day, "+
+				"COALESCE(SUM(CASE WHEN ps.created_at >= ? THEN 1 ELSE 0 END), 0) AS current_day",
+			nextDayStart,
+			todayStart,
+		).
 		Joins("JOIN user_proxies up ON up.proxy_id = ps.proxy_id AND up.user_id = ?", userID).
-		Where("ps.created_at >= ? AND ps.created_at < ?", cutoff, nextDayStart).
-		Scan(&partialCutoffDay).Error
+		Where("ps.created_at >= ?", cutoff).
+		Scan(&boundaryCounts).Error
 	if err != nil {
 		return dashboardCheckCounts{}, err
 	}
 
-	counts.TotalChecksWeek = fullDayWeek + partialCutoffDay
+	counts.TotalChecks += boundaryCounts.CurrentDay
+	counts.TotalChecksWeek += boundaryCounts.PartialCutoffDay + boundaryCounts.CurrentDay
 	return counts, nil
 }
 
@@ -258,7 +286,7 @@ func loadDashboardCheckCountsDirect(userID uint, weekAgo time.Time) (dashboardCh
 	return counts, nil
 }
 
-func backfillProxyDailyChecksForProxyIDsTx(tx *gorm.DB, proxyIDs []uint64) error {
+func backfillProxyDailyChecksForProxyIDsTx(tx *gorm.DB, proxyIDs []uint64, before time.Time) error {
 	if tx == nil || len(proxyIDs) == 0 {
 		return nil
 	}
@@ -273,6 +301,7 @@ SELECT
 	CURRENT_TIMESTAMP
 FROM proxy_statistics ps
 WHERE ps.proxy_id IN ?
+	AND ps.created_at < ?
 GROUP BY ps.proxy_id, DATE(ps.created_at AT TIME ZONE 'UTC')
 ON CONFLICT (proxy_id, day) DO UPDATE
 SET checks_count = GREATEST(proxy_daily_checks.checks_count, EXCLUDED.checks_count),
@@ -284,7 +313,7 @@ SET checks_count = GREATEST(proxy_daily_checks.checks_count, EXCLUDED.checks_cou
 		if end > len(proxyIDs) {
 			end = len(proxyIDs)
 		}
-		if err := tx.Exec(query, proxyIDs[start:end]).Error; err != nil {
+		if err := tx.Exec(query, proxyIDs[start:end], before).Error; err != nil {
 			return fmt.Errorf("daily checks: backfill proxy daily counts: %w", err)
 		}
 	}
