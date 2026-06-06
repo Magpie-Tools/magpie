@@ -261,6 +261,8 @@ export class HttpService {
     rows?: number;
     search?: string;
     filters?: ProxyListFilters;
+    includeHealth?: boolean;
+    includeReputation?: boolean;
     sortField?: string | null;
     sortOrder?: number | null;
   }) {
@@ -275,6 +277,14 @@ export class HttpService {
 
     if (options?.search && options.search.trim().length > 0) {
       params = params.set('search', options.search.trim());
+    }
+
+    if (options?.includeHealth !== undefined) {
+      params = params.set('includeHealth', options.includeHealth ? 'true' : 'false');
+    }
+
+    if (options?.includeReputation !== undefined) {
+      params = params.set('includeReputation', options.includeReputation ? 'true' : 'false');
     }
 
     if (options?.sortField && options.sortOrder && options.sortOrder !== 0) {

@@ -98,4 +98,24 @@ describe('ScrapeSourceDetailComponent', () => {
       sortOrder: null,
     }));
   });
+
+  it('requests only the optional proxy summaries needed by visible columns', () => {
+    component.displayedColumns.set(['alive', 'ip_port', 'reputation']);
+    httpServiceStub.getScrapeSourceProxyPage.calls.reset();
+
+    component.onProxySort({field: 'alive', order: 1});
+
+    expect(httpServiceStub.getScrapeSourceProxyPage).toHaveBeenCalledWith(1, jasmine.objectContaining({
+      includeHealth: false,
+      includeReputation: true,
+    }));
+
+    component.displayedColumns.set(['alive', 'ip_port', 'health_overall']);
+    component.onProxySort({field: 'health_overall', order: 1});
+
+    expect(httpServiceStub.getScrapeSourceProxyPage).toHaveBeenCalledWith(1, jasmine.objectContaining({
+      includeHealth: true,
+      includeReputation: false,
+    }));
+  });
 });

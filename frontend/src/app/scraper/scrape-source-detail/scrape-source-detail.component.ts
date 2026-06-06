@@ -522,6 +522,8 @@ export class ScrapeSourceDetailComponent implements OnInit, OnDestroy {
       rows: this.proxyPageSize(),
       search: this.proxySearchTerm(),
       filters: this.buildFilterPayload(this.appliedFilters()),
+      includeHealth: this.columnsNeedHealth(this.displayedColumns()),
+      includeReputation: this.displayedColumns().includes('reputation'),
       sortField: this.proxySortField(),
       sortOrder: this.proxySortOrder(),
     }).subscribe({
@@ -587,6 +589,16 @@ export class ScrapeSourceDetailComponent implements OnInit, OnDestroy {
 
   private buildFilterPayload(filters: ProxyListAppliedFilters): ProxyListFilters | undefined {
     return buildProxyListFilterPayload(filters);
+  }
+
+  private columnsNeedHealth(columns: readonly ProxyTableColumnId[]): boolean {
+    return columns.some(column =>
+      column === 'health_overall' ||
+      column === 'health_http' ||
+      column === 'health_https' ||
+      column === 'health_socks4' ||
+      column === 'health_socks5'
+    );
   }
 
   private resolveProxySortField(sortField: TableLazyLoadEvent['sortField']): string | null {
