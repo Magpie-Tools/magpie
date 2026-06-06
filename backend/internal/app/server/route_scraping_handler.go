@@ -143,6 +143,8 @@ func getScrapeSourceProxies(w http.ResponseWriter, r *http.Request) {
 	search := strings.TrimSpace(r.URL.Query().Get("search"))
 	sortField := strings.TrimSpace(r.URL.Query().Get("sortField"))
 	sortOrder := strings.TrimSpace(r.URL.Query().Get("sortOrder"))
+	includeHealth := parseBoolQueryParam(r.URL.Query().Get("includeHealth"), true)
+	includeReputation := parseBoolQueryParam(r.URL.Query().Get("includeReputation"), true)
 
 	status := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("status")))
 	if status != "alive" && status != "dead" {
@@ -166,8 +168,8 @@ func getScrapeSourceProxies(w http.ResponseWriter, r *http.Request) {
 	}
 
 	proxies, total, dbErr := database.GetScrapeSiteProxyPageWithOptions(userID, sourceID, page, pageSize, search, filters, database.ProxyPageQueryOptions{
-		IncludeHealth:     true,
-		IncludeReputation: true,
+		IncludeHealth:     includeHealth,
+		IncludeReputation: includeReputation,
 		SortField:         sortField,
 		SortOrder:         sortOrder,
 	})

@@ -537,10 +537,20 @@ func GetScrapeSiteProxyPageWithOptions(userId uint, scrapeSiteId uint64, page in
 
 	options = normalizeProxyPageQueryOptions(options)
 
-	subQuery := DB.Model(&domain.ProxyStatistic{}).
-		Select("DISTINCT ON (proxy_id) *").
-		Order("proxy_id, created_at DESC, id DESC")
-	healthSubQuery := buildProxyHealthSubQuery(userId)
+	subQuery := buildLatestProxyStatisticSubQuery()
+
+	healthSelect := "NULL::numeric AS health_overall, " +
+		"NULL::numeric AS health_http, " +
+		"NULL::numeric AS health_https, " +
+		"NULL::numeric AS health_socks4, " +
+		"NULL::numeric AS health_socks5"
+	if options.IncludeHealth {
+		healthSelect = "stats.health_overall AS health_overall, " +
+			"stats.health_http AS health_http, " +
+			"stats.health_https AS health_https, " +
+			"stats.health_socks4 AS health_socks4, " +
+			"stats.health_socks5 AS health_socks5"
+	}
 
 	query := DB.Model(&domain.Proxy{}).
 		Select(
@@ -552,11 +562,7 @@ func GetScrapeSiteProxyPageWithOptions(userId uint, scrapeSiteId uint64, page in
 				"COALESCE(NULLIF(proxies.country, ''), 'N/A') AS country, "+
 				"COALESCE(al.name, 'N/A') AS anonymity_level, "+
 				"COALESCE(pos.overall_alive, false) AS alive, "+
-				"stats.health_overall AS health_overall, "+
-				"stats.health_http AS health_http, "+
-				"stats.health_https AS health_https, "+
-				"stats.health_socks4 AS health_socks4, "+
-				"stats.health_socks5 AS health_socks5, "+
+				healthSelect+", "+
 				"COALESCE(pos.last_checked_at, ps.created_at, '0001-01-01 00:00:00'::timestamp) AS latest_check",
 		).
 		Joins("JOIN user_proxies up ON up.proxy_id = proxies.id AND up.user_id = ?", userId).
@@ -564,9 +570,12 @@ func GetScrapeSiteProxyPageWithOptions(userId uint, scrapeSiteId uint64, page in
 		Joins("JOIN user_scrape_site uss ON uss.scrape_site_id = pss.scrape_site_id AND uss.user_id = ?", userId).
 		Joins("LEFT JOIN (?) AS ps ON ps.proxy_id = proxies.id", subQuery).
 		Joins("LEFT JOIN proxy_overall_statuses pos ON pos.proxy_id = proxies.id").
-		Joins("LEFT JOIN (?) AS stats ON stats.proxy_id = proxies.id", healthSubQuery).
 		Joins("LEFT JOIN anonymity_levels al ON al.id = ps.level_id")
 
+	if options.IncludeHealth {
+		healthSubQuery := buildProxyHealthSubQuery(userId)
+		query = query.Joins("LEFT JOIN (?) AS stats ON stats.proxy_id = proxies.id", healthSubQuery)
+	}
 	if options.SortField == "reputation" {
 		query = query.Joins("LEFT JOIN proxy_reputations pr_overall ON pr_overall.proxy_id = proxies.id AND pr_overall.kind = ?", domain.ProxyReputationKindOverall)
 	}
@@ -634,6 +643,51 @@ func GetScrapeSiteProxyPageWithOptions(userId uint, scrapeSiteId uint64, page in
 	}
 
 	return pageSlice, total, nil
+}
+
+func DeleteOrphanProxyScrapeSiteRelations(ctx context.Context) (int64, error) {
+	if DB == nil {
+		return 0, fmt.Errorf("database not initialised")
+	}
+
+	db := DB
+	if ctx != nil {
+		db = db.WithContext(ctx)
+	}
+
+	if !isPostgresDialect(db) {
+		result := db.
+			Where("NOT EXISTS (SELECT 1 FROM proxies p WHERE p.id = proxy_scrape_site.proxy_id)").
+			Delete(&domain.ProxyScrapeSite{})
+		return result.RowsAffected, result.Error
+	}
+
+	const orphanProxyBatchSize = 5_000
+	var total int64
+	for {
+		result := db.Exec(`
+			WITH orphan_proxy_ids AS (
+				SELECT pss.proxy_id
+				FROM proxy_scrape_site AS pss
+				LEFT JOIN proxies AS p ON p.id = pss.proxy_id
+				WHERE p.id IS NULL
+				GROUP BY pss.proxy_id
+				ORDER BY pss.proxy_id
+				LIMIT ?
+			)
+			DELETE FROM proxy_scrape_site AS pss
+			USING orphan_proxy_ids AS orphan
+			WHERE pss.proxy_id = orphan.proxy_id
+		`, orphanProxyBatchSize)
+		if result.Error != nil {
+			return total, result.Error
+		}
+
+		total += result.RowsAffected
+		if result.RowsAffected == 0 {
+			return total, nil
+		}
+	}
 }
 
 func DeleteScrapeSiteRelation(userId uint, scrapeSite []int) (int64, []domain.ScrapeSite, error) {

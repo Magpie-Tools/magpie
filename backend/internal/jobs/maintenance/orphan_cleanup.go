@@ -72,12 +72,18 @@ func resolveCleanupInterval() time.Duration {
 func runOrphanCleanup(ctx context.Context) {
 	start := time.Now()
 
-	var proxyRemoved, siteRemoved int64
+	var proxyRemoved, sourceLinkRemoved, siteRemoved int64
 
 	if removed, err := database.DeleteOrphanProxies(ctx); err != nil {
 		log.Error("Failed to cleanup orphan proxies", "error", err)
 	} else {
 		proxyRemoved = removed
+	}
+
+	if removed, err := database.DeleteOrphanProxyScrapeSiteRelations(ctx); err != nil {
+		log.Error("Failed to cleanup orphan proxy scrape-source links", "error", err)
+	} else {
+		sourceLinkRemoved = removed
 	}
 
 	if removed, err := database.DeleteOrphanScrapeSites(ctx); err != nil {
@@ -86,13 +92,14 @@ func runOrphanCleanup(ctx context.Context) {
 		siteRemoved = removed
 	}
 
-	if proxyRemoved == 0 && siteRemoved == 0 {
+	if proxyRemoved == 0 && sourceLinkRemoved == 0 && siteRemoved == 0 {
 		return
 	}
 
 	log.Info(
 		"Orphan cleanup completed",
 		"proxies_removed", proxyRemoved,
+		"proxy_scrape_source_links_removed", sourceLinkRemoved,
 		"scrape_sites_removed", siteRemoved,
 		"duration", time.Since(start),
 	)

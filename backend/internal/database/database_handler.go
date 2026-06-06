@@ -106,6 +106,9 @@ func SetupDB(opts ...Option) (*gorm.DB, error) {
 			return nil, err
 		}
 	}
+	if err := ensureProxyListPerformanceSchema(DB); err != nil {
+		return nil, err
+	}
 
 	return DB, nil
 }

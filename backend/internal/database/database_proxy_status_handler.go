@@ -60,11 +60,14 @@ func latestProxyStatusEntries(stats []domain.ProxyStatistic) ([]domain.ProxyLate
 			ProtocolID: stat.ProtocolID,
 		}
 		entry := domain.ProxyLatestStatistic{
-			ProxyID:     stat.ProxyID,
-			ProtocolID:  stat.ProtocolID,
-			Alive:       stat.Alive,
-			StatisticID: stat.ID,
-			CheckedAt:   checkedAt,
+			ProxyID:      stat.ProxyID,
+			ProtocolID:   stat.ProtocolID,
+			Alive:        stat.Alive,
+			StatisticID:  stat.ID,
+			ResponseTime: stat.ResponseTime,
+			Attempt:      stat.Attempt,
+			LevelID:      stat.LevelID,
+			CheckedAt:    checkedAt,
 		}
 
 		if existing, ok := latest[key]; ok && !isNewerLatestStat(entry, existing) {
@@ -113,10 +116,13 @@ func upsertProxyLatestStatistics(tx *gorm.DB, entries []domain.ProxyLatestStatis
 			{Name: "protocol_id"},
 		},
 		DoUpdates: clause.Assignments(map[string]interface{}{
-			"alive":        gorm.Expr("excluded.alive"),
-			"statistic_id": gorm.Expr("excluded.statistic_id"),
-			"checked_at":   gorm.Expr("excluded.checked_at"),
-			"updated_at":   gorm.Expr("CURRENT_TIMESTAMP"),
+			"alive":         gorm.Expr("excluded.alive"),
+			"statistic_id":  gorm.Expr("excluded.statistic_id"),
+			"response_time": gorm.Expr("excluded.response_time"),
+			"attempt":       gorm.Expr("excluded.attempt"),
+			"level_id":      gorm.Expr("excluded.level_id"),
+			"checked_at":    gorm.Expr("excluded.checked_at"),
+			"updated_at":    gorm.Expr("CURRENT_TIMESTAMP"),
 		}),
 		Where: clause.Where{Exprs: []clause.Expression{
 			clause.Expr{

@@ -672,13 +672,13 @@ func buildProxyHealthSubQuery(userId uint) *gorm.DB {
 }
 
 func buildLatestProxyStatisticSubQuery() *gorm.DB {
-	latestByProxy := DB.Table("proxy_latest_statistics pls").
-		Select("DISTINCT ON (pls.proxy_id) pls.proxy_id, pls.statistic_id, pls.checked_at").
+	return DB.Table("proxy_latest_statistics pls").
+		Select(
+			"DISTINCT ON (pls.proxy_id) pls.proxy_id, pls.level_id, " +
+				"COALESCE(pls.response_time, 0) AS response_time, " +
+				"COALESCE(pls.attempt, 0) AS attempt, pls.checked_at AS created_at",
+		).
 		Order("pls.proxy_id, pls.checked_at DESC, pls.statistic_id DESC")
-
-	return DB.Table("(?) AS latest", latestByProxy).
-		Select("latest.proxy_id, ps.level_id, ps.response_time, ps.attempt, latest.checked_at AS created_at").
-		Joins("JOIN proxy_statistics ps ON ps.id = latest.statistic_id")
 }
 
 func GetProxyInfoPageWithFilters(userId uint, page int, pageSize int, search string, filters dto.ProxyListFilters) ([]dto.ProxyInfo, int64) {
