@@ -440,10 +440,10 @@ func loadDashboardInfo(userid uint) dto.DashboardInfo {
 
 	go func() {
 		defer wg.Done()
-		const countryExpr = "CASE WHEN proxies.country IS NULL OR TRIM(proxies.country) = '' OR LOWER(TRIM(proxies.country)) IN ('n/a', 'unknown', 'unk') THEN 'Unknown' ELSE TRIM(proxies.country) END"
-		DB.Model(&domain.Proxy{}).
+		const countryExpr = "CASE WHEN ufi.country_key IN ('n/a', 'unknown', 'unk') THEN 'Unknown' ELSE ufi.country END"
+		DB.Table("user_proxy_filter_indexes ufi").
 			Select(countryExpr+" AS country, COUNT(*) AS count").
-			Joins("JOIN user_proxies up ON up.proxy_id = proxies.id AND up.user_id = ?", userid).
+			Where("ufi.user_id = ?", userid).
 			Group(countryExpr).
 			Order("count DESC, country ASC").
 			Scan(&countries)
@@ -469,22 +469,19 @@ func loadDashboardInfo(userid uint) dto.DashboardInfo {
 
 	go func() {
 		defer wg.Done()
-		DB.Table("proxy_reputations AS pr").
-			Select("LOWER(COALESCE(NULLIF(pr.label, ''), 'unknown')) AS label, COUNT(*) AS count").
-			Joins("JOIN user_proxies up ON up.proxy_id = pr.proxy_id AND up.user_id = ?", userid).
-			Where("pr.kind = ?", domain.ProxyReputationKindOverall).
+		DB.Table("user_proxy_filter_indexes ufi").
+			Select("ufi.reputation_label AS label, COUNT(*) AS count").
+			Where("ufi.user_id = ?", userid).
 			Group("label").
 			Scan(&repCounts)
 	}()
 
 	go func() {
 		defer wg.Done()
-		result := DB.Table("proxy_reputations AS pr").
-			Select("pr.proxy_id, pr.score, pr.label, p.ip, p.port").
-			Joins("JOIN user_proxies up ON up.proxy_id = pr.proxy_id AND up.user_id = ?", userid).
-			Joins("JOIN proxies p ON p.id = pr.proxy_id").
-			Where("pr.kind = ?", domain.ProxyReputationKindOverall).
-			Order("pr.score DESC, pr.proxy_id ASC").
+		result := DB.Table("user_proxy_filter_indexes ufi").
+			Select("ufi.proxy_id, ufi.reputation_score AS score, ufi.reputation_label AS label, ufi.ip, ufi.port").
+			Where("ufi.user_id = ? AND ufi.reputation_score IS NOT NULL", userid).
+			Order("ufi.reputation_score DESC, ufi.proxy_id ASC").
 			Limit(1).
 			Scan(&topRow)
 		topRowFound = result.Error == nil && result.RowsAffected > 0 && topRow.ProxyID != 0
