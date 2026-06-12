@@ -73,7 +73,7 @@ func TestBuildProxySearchPredicate_AvoidsCastHeavyPredicates(t *testing.T) {
 	if strings.Contains(sql, "CAST(") || strings.Contains(sql, "ILIKE") {
 		t.Fatalf("expected no cast-heavy ilike predicates, got %q", sql)
 	}
-	if !strings.Contains(sql, "overall_alive") {
+	if !strings.Contains(sql, "ufi.alive") {
 		t.Fatalf("expected status predicate in %q", sql)
 	}
 }
@@ -83,10 +83,10 @@ func TestBuildProxySearchPredicate_NumericIncludesTypedMatches(t *testing.T) {
 	if sql == "" {
 		t.Fatal("expected predicate for numeric search")
 	}
-	if !strings.Contains(sql, "proxies.port = ?") {
+	if !strings.Contains(sql, "ufi.port = ?") {
 		t.Fatalf("expected typed port match in %q", sql)
 	}
-	if !strings.Contains(sql, "ps.response_time") {
+	if !strings.Contains(sql, "ufi.response_time") {
 		t.Fatalf("expected typed response time match in %q", sql)
 	}
 

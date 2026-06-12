@@ -443,10 +443,16 @@ func createUserAssociations(tx *gorm.DB, proxyIDs []uint64, userID uint, batchSi
 		}
 	}
 
-	return tx.Clauses(clause.OnConflict{
+	if err := tx.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "user_id"}, {Name: "proxy_id"}},
 		DoNothing: true,
-	}).CreateInBatches(associations, batchSize).Error
+	}).CreateInBatches(associations, batchSize).Error; err != nil {
+		return err
+	}
+	if err := refreshUserProxyFilterIndexesForUserProxyIDs(tx, userID, proxyIDs); err != nil {
+		return err
+	}
+	return refreshUserScrapeSourceStatsForUserProxyIDs(tx, userID, proxyIDs)
 }
 
 func fetchProxiesWithUsers(tx *gorm.DB, proxies []domain.Proxy) ([]domain.Proxy, error) {
@@ -768,52 +774,30 @@ func GetProxyInfoPageWithFiltersAndOptions(
 
 	options = normalizeProxyPageQueryOptions(options)
 
-	subQuery := buildLatestProxyStatisticSubQuery()
-
-	healthSelect := "NULL::numeric AS health_overall, " +
-		"NULL::numeric AS health_http, " +
-		"NULL::numeric AS health_https, " +
-		"NULL::numeric AS health_socks4, " +
-		"NULL::numeric AS health_socks5"
-	if options.IncludeHealth {
-		healthSelect = "stats.health_overall AS health_overall, " +
-			"stats.health_http AS health_http, " +
-			"stats.health_https AS health_https, " +
-			"stats.health_socks4 AS health_socks4, " +
-			"stats.health_socks5 AS health_socks5"
-	}
-
-	query := DB.Model(&domain.Proxy{}).
+	query := DB.Table("user_proxy_filter_indexes ufi").
 		Select(
-			"proxies.id AS id, "+
-				"proxies.ip AS ip_encrypted, "+
-				"proxies.port AS port, "+
-				"COALESCE(NULLIF(proxies.estimated_type, ''), 'N/A') AS estimated_type, "+
-				"COALESCE(ps.response_time, 0) AS response_time, "+
-				"COALESCE(NULLIF(proxies.country, ''), 'N/A') AS country, "+
-				"COALESCE(al.name, 'N/A') AS anonymity_level, "+
-				"COALESCE(pos.overall_alive, false) AS alive, "+
-				healthSelect+", "+
-				"COALESCE(pos.last_checked_at, ps.created_at, '0001-01-01 00:00:00'::timestamp) AS latest_check",
+			"ufi.proxy_id AS id, "+
+				"ufi.ip AS ip_encrypted, "+
+				"ufi.port AS port, "+
+				"ufi.estimated_type AS estimated_type, "+
+				"ufi.response_time AS response_time, "+
+				"ufi.country AS country, "+
+				"ufi.anonymity_level AS anonymity_level, "+
+				"ufi.alive AS alive, "+
+				"ufi.health_overall AS health_overall, "+
+				"ufi.health_http AS health_http, "+
+				"ufi.health_https AS health_https, "+
+				"ufi.health_socks4 AS health_socks4, "+
+				"ufi.health_socks5 AS health_socks5, "+
+				"ufi.latest_check AS latest_check",
 		).
-		Joins("JOIN user_proxies up ON up.proxy_id = proxies.id AND up.user_id = ?", userId).
-		Joins("LEFT JOIN (?) AS ps ON ps.proxy_id = proxies.id", subQuery).
-		Joins("LEFT JOIN proxy_overall_statuses pos ON pos.proxy_id = proxies.id").
-		Joins("LEFT JOIN anonymity_levels al ON al.id = ps.level_id")
-
-	if options.IncludeHealth {
-		healthSubQuery := buildProxyHealthSubQuery(userId)
-		query = query.Joins("LEFT JOIN (?) AS stats ON stats.proxy_id = proxies.id", healthSubQuery)
-	}
-	if options.SortField == "reputation" {
-		query = query.Joins("LEFT JOIN proxy_reputations pr_overall ON pr_overall.proxy_id = proxies.id AND pr_overall.kind = ?", domain.ProxyReputationKindOverall)
-	}
+		Where("ufi.user_id = ?", userId)
 
 	query = applyProxyPageSort(query, options)
 
 	filterQuery := buildProxyListFilterQuery(userId, filters)
 	if filterQuery != nil {
-		query = query.Where("proxies.id IN (?)", filterQuery)
+		query = query.Where("ufi.proxy_id IN (?)", filterQuery)
 	}
 
 	rows := make([]dto.ProxyInfoRow, 0)
@@ -837,7 +821,7 @@ func GetProxyInfoPageWithFiltersAndOptions(
 		}
 
 		var total int64
-		if err := DB.Table("(?) AS filtered", filterQuery.Select("proxies.id").Group("proxies.id")).Count(&total).Error; err != nil {
+		if err := DB.Table("(?) AS filtered", filterQuery.Select("ufi.proxy_id").Group("ufi.proxy_id")).Count(&total).Error; err != nil {
 			return proxies, 0
 		}
 		return proxies, total
@@ -857,7 +841,7 @@ func GetProxyInfoPageWithFiltersAndOptions(
 
 		offset := (page - 1) * pageSize
 		if err := query.
-			Joins("JOIN (?) AS matched ON matched.id = proxies.id", matchedProxyIDs).
+			Joins("JOIN (?) AS matched ON matched.id = ufi.proxy_id", matchedProxyIDs).
 			Offset(offset).
 			Limit(pageSize).
 			Scan(&rows).Error; err != nil {
@@ -888,7 +872,7 @@ func GetProxyInfoPageWithFiltersAndOptions(
 
 	offset := (page - 1) * pageSize
 	if err := query.
-		Joins("JOIN (?) AS matched ON matched.id = proxies.id", matchedProxyIDs).
+		Joins("JOIN (?) AS matched ON matched.id = ufi.proxy_id", matchedProxyIDs).
 		Offset(offset).
 		Limit(pageSize).
 		Scan(&rows).Error; err != nil {
@@ -991,7 +975,7 @@ func applyProxyPageSort(query *gorm.DB, options ProxyPageQueryOptions) *gorm.DB 
 	for _, expression := range expressions {
 		orderParts = append(orderParts, fmt.Sprintf("%s %s NULLS LAST", expression, direction))
 	}
-	orderParts = append(orderParts, "proxies.id ASC")
+	orderParts = append(orderParts, "ufi.proxy_id ASC")
 
 	return query.Order(strings.Join(orderParts, ", "))
 }
@@ -999,33 +983,33 @@ func applyProxyPageSort(query *gorm.DB, options ProxyPageQueryOptions) *gorm.DB 
 func proxyPageSortExpressions(field string) []string {
 	switch field {
 	case "alive":
-		return []string{"COALESCE(pos.overall_alive, false)"}
+		return []string{"ufi.alive"}
 	case "health_overall":
-		return []string{"stats.health_overall"}
+		return []string{"ufi.health_overall"}
 	case "health_http":
-		return []string{"stats.health_http"}
+		return []string{"ufi.health_http"}
 	case "health_https":
-		return []string{"stats.health_https"}
+		return []string{"ufi.health_https"}
 	case "health_socks4":
-		return []string{"stats.health_socks4"}
+		return []string{"ufi.health_socks4"}
 	case "health_socks5":
-		return []string{"stats.health_socks5"}
+		return []string{"ufi.health_socks5"}
 	case "ip":
-		return []string{"proxies.ip_int"}
+		return []string{"ufi.ip_int"}
 	case "ip_port":
-		return []string{"proxies.ip_int", "proxies.port"}
+		return []string{"ufi.ip_int", "ufi.port"}
 	case "port":
-		return []string{"proxies.port"}
+		return []string{"ufi.port"}
 	case "response_time":
-		return []string{"COALESCE(ps.response_time, 0)"}
+		return []string{"ufi.response_time"}
 	case "estimated_type":
-		return []string{"COALESCE(NULLIF(proxies.estimated_type, ''), 'N/A')"}
+		return []string{"ufi.estimated_type"}
 	case "country":
-		return []string{"COALESCE(NULLIF(proxies.country, ''), 'N/A')"}
+		return []string{"ufi.country"}
 	case "reputation":
-		return []string{"pr_overall.score"}
+		return []string{"ufi.reputation_score"}
 	case "latest_check":
-		return []string{"COALESCE(pos.last_checked_at, ps.created_at, '0001-01-01 00:00:00'::timestamp)"}
+		return []string{"ufi.latest_check"}
 	default:
 		return nil
 	}
@@ -1089,34 +1073,29 @@ func buildIPIntSearchRange(search string) (uint32, uint32, bool) {
 }
 
 func buildProxySearchIDQuery(userId uint, filterQuery *gorm.DB, lowerSearch string) *gorm.DB {
-	latestStats := buildLatestProxyStatisticSubQuery()
-	query := DB.Model(&domain.Proxy{}).
-		Select("proxies.id").
-		Joins("JOIN user_proxies up ON up.proxy_id = proxies.id AND up.user_id = ?", userId).
-		Joins("LEFT JOIN (?) AS ps ON ps.proxy_id = proxies.id", latestStats).
-		Joins("LEFT JOIN proxy_overall_statuses pos ON pos.proxy_id = proxies.id").
-		Joins("LEFT JOIN anonymity_levels al ON al.id = ps.level_id").
-		Joins("LEFT JOIN proxy_reputations pr_overall ON pr_overall.proxy_id = proxies.id AND pr_overall.kind = ?", domain.ProxyReputationKindOverall)
+	query := DB.Table("user_proxy_filter_indexes ufi").
+		Select("ufi.proxy_id AS id").
+		Where("ufi.user_id = ?", userId)
 
 	if filterQuery != nil {
-		query = query.Where("proxies.id IN (?)", filterQuery)
+		query = query.Where("ufi.proxy_id IN (?)", filterQuery)
 	}
 
 	query = applyProxySearchQuery(query, lowerSearch)
-	return query.Group("proxies.id")
+	return query.Group("ufi.proxy_id")
 }
 
 func buildProxyIPSearchIDQuery(userId uint, filterQuery *gorm.DB, rangeStart, rangeEnd uint32) *gorm.DB {
-	query := DB.Model(&domain.Proxy{}).
-		Select("proxies.id").
-		Joins("JOIN user_proxies up ON up.proxy_id = proxies.id AND up.user_id = ?", userId).
-		Where("proxies.ip_int BETWEEN ? AND ?", rangeStart, rangeEnd)
+	query := DB.Table("user_proxy_filter_indexes ufi").
+		Select("ufi.proxy_id AS id").
+		Where("ufi.user_id = ?", userId).
+		Where("ufi.ip_int BETWEEN ? AND ?", rangeStart, rangeEnd)
 
 	if filterQuery != nil {
-		query = query.Where("proxies.id IN (?)", filterQuery)
+		query = query.Where("ufi.proxy_id IN (?)", filterQuery)
 	}
 
-	return query.Group("proxies.id")
+	return query.Group("ufi.proxy_id")
 }
 
 func applyProxySearchQuery(query *gorm.DB, lowerSearch string) *gorm.DB {
@@ -1135,14 +1114,12 @@ func buildProxySearchPredicate(lowerSearch string) (string, []interface{}) {
 
 	pattern := "%" + lowerSearch + "%"
 	conditions := []string{
-		"LOWER(COALESCE(NULLIF(proxies.estimated_type, ''), 'n/a')) LIKE ?",
-		"LOWER(COALESCE(NULLIF(proxies.country, ''), 'n/a')) LIKE ?",
-		"LOWER(COALESCE(al.name, 'n/a')) LIKE ?",
-		"LOWER(COALESCE(pr_overall.kind, '')) LIKE ?",
-		"LOWER(COALESCE(pr_overall.label, '')) LIKE ?",
+		"ufi.type_key LIKE ?",
+		"ufi.country_key LIKE ?",
+		"ufi.anonymity_key LIKE ?",
+		"ufi.reputation_label LIKE ?",
 	}
 	args := []interface{}{
-		pattern,
 		pattern,
 		pattern,
 		pattern,
@@ -1151,17 +1128,17 @@ func buildProxySearchPredicate(lowerSearch string) (string, []interface{}) {
 
 	switch lowerSearch {
 	case "alive":
-		conditions = append(conditions, "COALESCE(pos.overall_alive, false) = ?")
+		conditions = append(conditions, "ufi.alive = ?")
 		args = append(args, true)
 	case "dead":
-		conditions = append(conditions, "COALESCE(pos.overall_alive, false) = ?")
+		conditions = append(conditions, "ufi.alive = ?")
 		args = append(args, false)
 	}
 
 	if numericValue, err := strconv.ParseUint(lowerSearch, 10, 16); err == nil {
-		conditions = append(conditions, "proxies.port = ?")
+		conditions = append(conditions, "ufi.port = ?")
 		args = append(args, uint16(numericValue))
-		conditions = append(conditions, "COALESCE(ps.response_time, 0) = ?")
+		conditions = append(conditions, "ufi.response_time = ?")
 		args = append(args, uint16(numericValue))
 	}
 
@@ -1175,88 +1152,80 @@ func buildProxyListFilterQuery(userId uint, filters dto.ProxyListFilters) *gorm.
 
 	selectedProtocols := normalizeProtocolFilters(filters.Protocols)
 
-	query := DB.Model(&domain.Proxy{}).
-		Select("proxies.id").
-		Joins("JOIN user_proxies up ON up.proxy_id = proxies.id AND up.user_id = ?", userId)
+	query := DB.Table("user_proxy_filter_indexes ufi").
+		Select("ufi.proxy_id").
+		Where("ufi.user_id = ?", userId)
 
 	if filters.Status == "alive" || filters.Status == "dead" {
-		query = query.Joins("LEFT JOIN proxy_overall_statuses pos ON pos.proxy_id = proxies.id")
 		if filters.Status == "alive" {
-			query = query.Where("COALESCE(pos.overall_alive, false) = ?", true)
+			query = query.Where("ufi.alive = ?", true)
 		} else {
-			query = query.Where("COALESCE(pos.overall_alive, false) = ?", false)
+			query = query.Where("ufi.alive = ?", false)
 		}
 	}
 
 	if len(filters.Countries) > 0 {
-		query = query.Where("COALESCE(NULLIF(LOWER(proxies.country), ''), 'n/a') IN ?", filters.Countries)
+		query = query.Where("ufi.country_key IN ?", filters.Countries)
 	}
 
 	if len(filters.Types) > 0 {
-		query = query.Where("COALESCE(NULLIF(LOWER(proxies.estimated_type), ''), 'n/a') IN ?", filters.Types)
+		query = query.Where("ufi.type_key IN ?", filters.Types)
 	}
 
 	if hasProxyHealthFilters(filters) {
-		healthStats := buildProxyHealthSubQuery(userId)
-		query = query.Joins("JOIN (?) AS health_stats ON health_stats.proxy_id = proxies.id", healthStats)
-
 		if filters.MinHealthOverall > 0 {
-			query = query.Where("COALESCE(health_stats.health_overall, -1) >= ?", filters.MinHealthOverall)
+			query = query.Where("COALESCE(ufi.health_overall, -1) >= ?", filters.MinHealthOverall)
 		}
 
 		if filters.MinHealthHTTP > 0 {
-			query = query.Where("COALESCE(health_stats.health_http, -1) >= ?", filters.MinHealthHTTP)
+			query = query.Where("COALESCE(ufi.health_http, -1) >= ?", filters.MinHealthHTTP)
 		}
 
 		if filters.MinHealthHTTPS > 0 {
-			query = query.Where("COALESCE(health_stats.health_https, -1) >= ?", filters.MinHealthHTTPS)
+			query = query.Where("COALESCE(ufi.health_https, -1) >= ?", filters.MinHealthHTTPS)
 		}
 
 		if filters.MinHealthSOCKS4 > 0 {
-			query = query.Where("COALESCE(health_stats.health_socks4, -1) >= ?", filters.MinHealthSOCKS4)
+			query = query.Where("COALESCE(ufi.health_socks4, -1) >= ?", filters.MinHealthSOCKS4)
 		}
 
 		if filters.MinHealthSOCKS5 > 0 {
-			query = query.Where("COALESCE(health_stats.health_socks5, -1) >= ?", filters.MinHealthSOCKS5)
+			query = query.Where("COALESCE(ufi.health_socks5, -1) >= ?", filters.MinHealthSOCKS5)
 		}
 	}
 
-	needsLatestStats := len(filters.AnonymityLevels) > 0 || filters.MaxTimeout > 0 || filters.MaxRetries > 0
-	if needsLatestStats {
-		latestStats := buildLatestProxyStatisticSubQuery()
-		query = query.Joins("JOIN (?) AS ps ON ps.proxy_id = proxies.id", latestStats)
+	if len(filters.AnonymityLevels) > 0 {
+		query = query.Where("ufi.anonymity_key IN ?", filters.AnonymityLevels)
+	}
 
-		if len(filters.AnonymityLevels) > 0 {
-			query = query.Joins("LEFT JOIN anonymity_levels al ON al.id = ps.level_id").
-				Where("COALESCE(LOWER(al.name), 'n/a') IN ?", filters.AnonymityLevels)
-		}
+	if filters.MaxTimeout > 0 {
+		query = query.Where("ufi.response_time <= ?", filters.MaxTimeout)
+	}
 
-		if filters.MaxTimeout > 0 {
-			query = query.Where("ps.response_time <= ?", filters.MaxTimeout)
-		}
-
-		if filters.MaxRetries > 0 {
-			query = query.Where("ps.attempt <= ?", filters.MaxRetries)
-		}
+	if filters.MaxRetries > 0 {
+		query = query.Where("ufi.attempt <= ?", filters.MaxRetries)
 	}
 
 	if len(selectedProtocols) > 0 {
-		aliveOnAllSelectedProtocols := DB.
-			Table("proxy_latest_statistics pls_proto").
-			Select("pls_proto.proxy_id").
-			Joins("JOIN protocols proto ON proto.id = pls_proto.protocol_id").
-			Where("pls_proto.alive = ? AND LOWER(proto.name) IN ?", true, selectedProtocols).
-			Group("pls_proto.proxy_id").
-			Having("COUNT(DISTINCT LOWER(proto.name)) = ?", len(selectedProtocols))
-
-		query = query.Where("proxies.id IN (?)", aliveOnAllSelectedProtocols)
+		for _, protocol := range selectedProtocols {
+			switch protocol {
+			case "http":
+				query = query.Where("ufi.alive_http = ?", true)
+			case "https":
+				query = query.Where("ufi.alive_https = ?", true)
+			case "socks4":
+				query = query.Where("ufi.alive_socks4 = ?", true)
+			case "socks5":
+				query = query.Where("ufi.alive_socks5 = ?", true)
+			}
+		}
 	}
 
 	if len(filters.ReputationLabels) > 0 {
 		query = applyListReputationFilters(query, filters.ReputationLabels, selectedProtocols)
 	}
 
-	return query
+	return query.Group("ufi.proxy_id")
 }
 
 func normalizeProtocolFilters(protocols []string) []string {
@@ -1310,12 +1279,12 @@ func GetProxyFilterOptions(userId uint) (dto.ProxyFilterOptions, error) {
 		return dto.ProxyFilterOptions{}, fmt.Errorf("database connection was not initialised")
 	}
 
-	countries, err := loadDistinctProxyInfoValue(userId, "proxies.country")
+	countries, err := loadDistinctProxyInfoValue(userId, "ufi.country")
 	if err != nil {
 		return dto.ProxyFilterOptions{}, err
 	}
 
-	types, err := loadDistinctProxyInfoValue(userId, "proxies.estimated_type")
+	types, err := loadDistinctProxyInfoValue(userId, "ufi.estimated_type")
 	if err != nil {
 		return dto.ProxyFilterOptions{}, err
 	}
@@ -1338,9 +1307,9 @@ type proxyFilterValueRow struct {
 
 func loadDistinctProxyInfoValue(userId uint, column string) ([]string, error) {
 	var rows []proxyFilterValueRow
-	if err := DB.Model(&domain.Proxy{}).
+	if err := DB.Table("user_proxy_filter_indexes ufi").
 		Select("DISTINCT COALESCE(NULLIF("+column+", ''), 'N/A') AS value").
-		Joins("JOIN user_proxies up ON up.proxy_id = proxies.id AND up.user_id = ?", userId).
+		Where("ufi.user_id = ?", userId).
 		Order("value").
 		Scan(&rows).Error; err != nil {
 		return nil, err
@@ -1351,16 +1320,9 @@ func loadDistinctProxyInfoValue(userId uint, column string) ([]string, error) {
 
 func loadDistinctAnonymityLevels(userId uint) ([]string, error) {
 	var rows []proxyFilterValueRow
-	latestStats := DB.Table("proxy_latest_statistics pls").
-		Select("DISTINCT ON (pls.proxy_id) pls.proxy_id, ps.level_id").
-		Joins("JOIN proxy_statistics ps ON ps.id = pls.statistic_id").
-		Order("pls.proxy_id, pls.checked_at DESC, pls.statistic_id DESC")
-
-	if err := DB.Model(&domain.Proxy{}).
-		Select("DISTINCT COALESCE(al.name, 'N/A') AS value").
-		Joins("JOIN user_proxies up ON up.proxy_id = proxies.id AND up.user_id = ?", userId).
-		Joins("LEFT JOIN (?) AS ps ON ps.proxy_id = proxies.id", latestStats).
-		Joins("LEFT JOIN anonymity_levels al ON al.id = ps.level_id").
+	if err := DB.Table("user_proxy_filter_indexes ufi").
+		Select("DISTINCT COALESCE(NULLIF(ufi.anonymity_level, ''), 'N/A') AS value").
+		Where("ufi.user_id = ?", userId).
 		Order("value").
 		Scan(&rows).Error; err != nil {
 		return nil, err
@@ -1870,6 +1832,26 @@ func DeleteProxyRelation(userId uint, proxies []int) (int64, []domain.Proxy, err
 
 		if result.Error != nil {
 			return totalDeleted, nil, result.Error
+		}
+
+		proxyIDs := make([]uint64, 0, len(chunk))
+		for _, id := range chunk {
+			if id > 0 {
+				proxyIDs = append(proxyIDs, uint64(id))
+			}
+		}
+		if len(proxyIDs) > 0 {
+			if DB.Migrator().HasTable(&domain.UserProxyFilterIndex{}) {
+				if err := DB.
+					Where("user_id = ?", userId).
+					Where("proxy_id IN ?", proxyIDs).
+					Delete(&domain.UserProxyFilterIndex{}).Error; err != nil {
+					return totalDeleted, nil, err
+				}
+			}
+			if err := refreshUserScrapeSourceStatsForUserProxyIDs(DB, userId, proxyIDs); err != nil {
+				return totalDeleted, nil, err
+			}
 		}
 
 		totalDeleted += result.RowsAffected
@@ -2467,14 +2449,14 @@ func applyListReputationFilters(query *gorm.DB, labels []string, protocols []str
 	labelExpr := "LOWER(COALESCE(NULLIF(pr.label, ''), 'unknown'))"
 
 	if includeUnknown {
-		query = query.Joins("LEFT JOIN proxy_reputations pr ON pr.proxy_id = proxies.id AND LOWER(pr.kind) IN ?", targetKinds)
+		query = query.Joins("LEFT JOIN proxy_reputations pr ON pr.proxy_id = ufi.proxy_id AND LOWER(pr.kind) IN ?", targetKinds)
 		if len(keys) > 0 {
 			query = query.Where(labelExpr+" IN ? OR pr.id IS NULL OR "+labelExpr+" = 'unknown'", keys)
 		} else {
 			query = query.Where("pr.id IS NULL OR " + labelExpr + " = 'unknown'")
 		}
 	} else {
-		query = query.Joins("JOIN proxy_reputations pr ON pr.proxy_id = proxies.id AND LOWER(pr.kind) IN ?", targetKinds)
+		query = query.Joins("JOIN proxy_reputations pr ON pr.proxy_id = ufi.proxy_id AND LOWER(pr.kind) IN ?", targetKinds)
 		if len(keys) > 0 {
 			query = query.Where(labelExpr+" IN ?", keys)
 		}

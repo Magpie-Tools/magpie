@@ -45,6 +45,16 @@ func DeleteUserAccount(ctx context.Context, userID uint) ([]domain.Proxy, []doma
 		if err := tx.Where("user_id = ?", userID).Delete(&domain.UserScrapeSite{}).Error; err != nil {
 			return err
 		}
+		if tx.Migrator().HasTable(&domain.UserProxyFilterIndex{}) {
+			if err := tx.Where("user_id = ?", userID).Delete(&domain.UserProxyFilterIndex{}).Error; err != nil {
+				return err
+			}
+		}
+		if tx.Migrator().HasTable(&domain.UserScrapeSourceStat{}) {
+			if err := tx.Where("user_id = ?", userID).Delete(&domain.UserScrapeSourceStat{}).Error; err != nil {
+				return err
+			}
+		}
 		if err := tx.Where("user_id = ?", userID).Delete(&domain.UserJudge{}).Error; err != nil {
 			return err
 		}

@@ -109,6 +109,9 @@ func SetupDB(opts ...Option) (*gorm.DB, error) {
 	if err := ensureProxyListPerformanceSchema(DB); err != nil {
 		return nil, err
 	}
+	if err := ensureReadModelBackfill(DB); err != nil {
+		return nil, err
+	}
 
 	return DB, nil
 }
@@ -179,6 +182,8 @@ func defaultMigrations() []any {
 		domain.AbuseIPDBCheck{},
 		domain.ProxyReputation{},
 		domain.UserProxy{},
+		domain.UserProxyFilterIndex{},
+		domain.UserScrapeSourceStat{},
 		domain.ProxyDailyCheck{},
 		domain.ProxyDailyCheckProxyBackfill{},
 		domain.RotatingProxy{},

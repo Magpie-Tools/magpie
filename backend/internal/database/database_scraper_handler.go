@@ -103,6 +103,10 @@ func SaveScrapingSourcesOfUsers(userID uint, sources []string) ([]domain.ScrapeS
 				return err
 			}
 			sites = loaded
+
+			if err := refreshUserScrapeSourceStatsForUserSites(tx, userID, siteIDs); err != nil {
+				return err
+			}
 		}
 
 		return nil
@@ -179,7 +183,7 @@ func AssociateProxiesToScrapeSite(siteID uint64, proxies []domain.Proxy) error {
 			}
 		}
 
-		return nil
+		return refreshUserScrapeSourceStatsForSites(tx, []uint64{siteID})
 	})
 }
 
@@ -214,19 +218,19 @@ func GetScrapeSiteInfoPageWithSearchAndFilters(userId uint, page int, search str
 	var results []dto.ScrapeSiteInfo
 
 	query := buildScrapeSiteInfoQuery(userId).Select(
-		"scrape_sites.id         AS id, " +
-			"scrape_sites.url        AS url, " +
-			"COALESCE(pc.proxy_count, 0) AS proxy_count, " +
-			"COALESCE(ps.alive_count, 0) AS alive_count, " +
-			"COALESCE(ps.dead_count, 0) AS dead_count, " +
-			"COALESCE(ps.unknown_count, 0) AS unknown_count, " +
-			"uss.created_at          AS added_at",
+		"usss.scrape_site_id AS id, " +
+			"usss.url AS url, " +
+			"usss.proxy_count AS proxy_count, " +
+			"usss.alive_count AS alive_count, " +
+			"usss.dead_count AS dead_count, " +
+			"usss.unknown_count AS unknown_count, " +
+			"usss.added_at AS added_at",
 	)
 
 	query = applyScrapeSiteSearch(query, search)
 	query = applyScrapeSiteListFilters(query, filters)
 
-	query.Order("uss.created_at DESC").
+	query.Order("usss.added_at DESC").
 		Offset(offset).
 		Limit(scrapeSitesPerPage).
 		Scan(&results)
@@ -238,23 +242,23 @@ func GetScrapeSiteInfoForExport(userId uint, settings dto.ScrapeSourceExportSett
 	var results []dto.ScrapeSiteInfo
 
 	query := buildScrapeSiteInfoQuery(userId).Select(
-		"scrape_sites.id         AS id, " +
-			"scrape_sites.url        AS url, " +
-			"COALESCE(pc.proxy_count, 0) AS proxy_count, " +
-			"COALESCE(ps.alive_count, 0) AS alive_count, " +
-			"COALESCE(ps.dead_count, 0) AS dead_count, " +
-			"COALESCE(ps.unknown_count, 0) AS unknown_count, " +
-			"uss.created_at          AS added_at",
+		"usss.scrape_site_id AS id, " +
+			"usss.url AS url, " +
+			"usss.proxy_count AS proxy_count, " +
+			"usss.alive_count AS alive_count, " +
+			"usss.dead_count AS dead_count, " +
+			"usss.unknown_count AS unknown_count, " +
+			"usss.added_at AS added_at",
 	)
 
 	if len(settings.ScrapeSources) > 0 {
-		query = query.Where("scrape_sites.id IN ?", settings.ScrapeSources)
+		query = query.Where("usss.scrape_site_id IN ?", settings.ScrapeSources)
 	}
 
 	if settings.Filter {
 		protocols := scrapeSourceProtocolsForExport(settings)
 		if len(protocols) > 0 {
-			query = query.Where("LOWER(split_part(scrape_sites.url, '://', 1)) IN ?", protocols)
+			query = query.Where("usss.protocol_key IN ?", protocols)
 		}
 		proxyCount := settings.ProxyCount
 		if proxyCount == 0 {
@@ -262,9 +266,9 @@ func GetScrapeSiteInfoForExport(userId uint, settings dto.ScrapeSourceExportSett
 		}
 		if proxyCount > 0 {
 			if exportCountOperator(settings.ProxyCountOperator, settings.ProxyCountMode) == "<" {
-				query = query.Where("COALESCE(pc.proxy_count, 0) < ?", proxyCount)
+				query = query.Where("usss.proxy_count < ?", proxyCount)
 			} else {
-				query = query.Where("COALESCE(pc.proxy_count, 0) > ?", proxyCount)
+				query = query.Where("usss.proxy_count > ?", proxyCount)
 			}
 		}
 		aliveCount := settings.AliveCount
@@ -273,14 +277,14 @@ func GetScrapeSiteInfoForExport(userId uint, settings dto.ScrapeSourceExportSett
 		}
 		if aliveCount > 0 {
 			if exportCountOperator(settings.AliveCountOperator, "") == "<" {
-				query = query.Where("COALESCE(ps.alive_count, 0) < ?", aliveCount)
+				query = query.Where("usss.alive_count < ?", aliveCount)
 			} else {
-				query = query.Where("COALESCE(ps.alive_count, 0) > ?", aliveCount)
+				query = query.Where("usss.alive_count > ?", aliveCount)
 			}
 		}
 	}
 
-	err := query.Order("uss.created_at DESC").Scan(&results).Error
+	err := query.Order("usss.added_at DESC").Scan(&results).Error
 	return results, err
 }
 
@@ -306,28 +310,28 @@ func applyScrapeSiteSearch(query *gorm.DB, search string) *gorm.DB {
 		return query
 	}
 
-	return query.Where("scrape_sites.url ILIKE ?", "%"+normalized+"%")
+	return query.Where("usss.url ILIKE ?", "%"+normalized+"%")
 }
 
 func applyScrapeSiteListFilters(query *gorm.DB, filters dto.ScrapeSourceListFilters) *gorm.DB {
 	protocols := normalizeScrapeSourceProtocolFilters(filters.Protocols)
 	if len(protocols) > 0 {
-		query = query.Where("LOWER(split_part(scrape_sites.url, '://', 1)) IN ?", protocols)
+		query = query.Where("usss.protocol_key IN ?", protocols)
 	}
 
 	if filters.ProxyCount > 0 {
 		if exportCountOperator(filters.ProxyCountOperator, "") == "<" {
-			query = query.Where("COALESCE(pc.proxy_count, 0) < ?", filters.ProxyCount)
+			query = query.Where("usss.proxy_count < ?", filters.ProxyCount)
 		} else {
-			query = query.Where("COALESCE(pc.proxy_count, 0) > ?", filters.ProxyCount)
+			query = query.Where("usss.proxy_count > ?", filters.ProxyCount)
 		}
 	}
 
 	if filters.AliveCount > 0 {
 		if exportCountOperator(filters.AliveCountOperator, "") == "<" {
-			query = query.Where("COALESCE(ps.alive_count, 0) < ?", filters.AliveCount)
+			query = query.Where("usss.alive_count < ?", filters.AliveCount)
 		} else {
-			query = query.Where("COALESCE(ps.alive_count, 0) > ?", filters.AliveCount)
+			query = query.Where("usss.alive_count > ?", filters.AliveCount)
 		}
 	}
 
@@ -367,32 +371,8 @@ func exportCountOperator(operator string, legacyMode string) string {
 }
 
 func buildScrapeSiteInfoQuery(userId uint) *gorm.DB {
-	// subquery: for each scrape_site_id, count only the proxies that this user has
-	subQuery := DB.
-		Model(&domain.ProxyScrapeSite{}).
-		Select("scrape_site_id, COUNT(*) AS proxy_count").
-		Joins("JOIN user_proxies up ON up.proxy_id = proxy_scrape_site.proxy_id AND up.user_id = ?", userId).
-		Group("scrape_site_id")
-
-	statusQuery := DB.
-		Table("proxy_scrape_site pss").
-		Select(
-			"pss.scrape_site_id AS scrape_site_id, "+
-				"COALESCE(SUM(CASE WHEN pos.overall_alive IS TRUE THEN 1 ELSE 0 END), 0) AS alive_count, "+
-				"COALESCE(SUM(CASE WHEN pos.overall_alive IS FALSE THEN 1 ELSE 0 END), 0) AS dead_count, "+
-				"COALESCE(SUM(CASE WHEN pos.proxy_id IS NULL THEN 1 ELSE 0 END), 0) AS unknown_count",
-		).
-		Joins("JOIN user_proxies up ON up.proxy_id = pss.proxy_id AND up.user_id = ?", userId).
-		Joins("LEFT JOIN proxy_overall_statuses pos ON pos.proxy_id = pss.proxy_id").
-		Group("pss.scrape_site_id")
-
-	return DB.
-		Model(&domain.ScrapeSite{}).
-		// only the sites this user has added
-		Joins("JOIN user_scrape_site uss ON uss.scrape_site_id = scrape_sites.id AND uss.user_id = ?", userId).
-		// attach the per-site, per-user proxy counts
-		Joins("LEFT JOIN (?) AS pc ON pc.scrape_site_id = scrape_sites.id", subQuery).
-		Joins("LEFT JOIN (?) AS ps ON ps.scrape_site_id = scrape_sites.id", statusQuery)
+	return DB.Table("user_scrape_source_stats usss").
+		Where("usss.user_id = ?", userId)
 }
 
 type scrapeSiteAggregateRow struct {
@@ -537,54 +517,32 @@ func GetScrapeSiteProxyPageWithOptions(userId uint, scrapeSiteId uint64, page in
 
 	options = normalizeProxyPageQueryOptions(options)
 
-	subQuery := buildLatestProxyStatisticSubQuery()
-
-	healthSelect := "NULL::numeric AS health_overall, " +
-		"NULL::numeric AS health_http, " +
-		"NULL::numeric AS health_https, " +
-		"NULL::numeric AS health_socks4, " +
-		"NULL::numeric AS health_socks5"
-	if options.IncludeHealth {
-		healthSelect = "stats.health_overall AS health_overall, " +
-			"stats.health_http AS health_http, " +
-			"stats.health_https AS health_https, " +
-			"stats.health_socks4 AS health_socks4, " +
-			"stats.health_socks5 AS health_socks5"
-	}
-
-	query := DB.Model(&domain.Proxy{}).
+	query := DB.Table("user_proxy_filter_indexes ufi").
 		Select(
-			"proxies.id AS id, "+
-				"proxies.ip AS ip_encrypted, "+
-				"proxies.port AS port, "+
-				"COALESCE(NULLIF(proxies.estimated_type, ''), 'N/A') AS estimated_type, "+
-				"COALESCE(ps.response_time, 0) AS response_time, "+
-				"COALESCE(NULLIF(proxies.country, ''), 'N/A') AS country, "+
-				"COALESCE(al.name, 'N/A') AS anonymity_level, "+
-				"COALESCE(pos.overall_alive, false) AS alive, "+
-				healthSelect+", "+
-				"COALESCE(pos.last_checked_at, ps.created_at, '0001-01-01 00:00:00'::timestamp) AS latest_check",
+			"ufi.proxy_id AS id, "+
+				"ufi.ip AS ip_encrypted, "+
+				"ufi.port AS port, "+
+				"ufi.estimated_type AS estimated_type, "+
+				"ufi.response_time AS response_time, "+
+				"ufi.country AS country, "+
+				"ufi.anonymity_level AS anonymity_level, "+
+				"ufi.alive AS alive, "+
+				"ufi.health_overall AS health_overall, "+
+				"ufi.health_http AS health_http, "+
+				"ufi.health_https AS health_https, "+
+				"ufi.health_socks4 AS health_socks4, "+
+				"ufi.health_socks5 AS health_socks5, "+
+				"ufi.latest_check AS latest_check",
 		).
-		Joins("JOIN user_proxies up ON up.proxy_id = proxies.id AND up.user_id = ?", userId).
-		Joins("JOIN proxy_scrape_site pss ON pss.proxy_id = proxies.id AND pss.scrape_site_id = ?", scrapeSiteId).
-		Joins("JOIN user_scrape_site uss ON uss.scrape_site_id = pss.scrape_site_id AND uss.user_id = ?", userId).
-		Joins("LEFT JOIN (?) AS ps ON ps.proxy_id = proxies.id", subQuery).
-		Joins("LEFT JOIN proxy_overall_statuses pos ON pos.proxy_id = proxies.id").
-		Joins("LEFT JOIN anonymity_levels al ON al.id = ps.level_id")
-
-	if options.IncludeHealth {
-		healthSubQuery := buildProxyHealthSubQuery(userId)
-		query = query.Joins("LEFT JOIN (?) AS stats ON stats.proxy_id = proxies.id", healthSubQuery)
-	}
-	if options.SortField == "reputation" {
-		query = query.Joins("LEFT JOIN proxy_reputations pr_overall ON pr_overall.proxy_id = proxies.id AND pr_overall.kind = ?", domain.ProxyReputationKindOverall)
-	}
+		Where("ufi.user_id = ?", userId).
+		Joins("JOIN proxy_scrape_site pss ON pss.proxy_id = ufi.proxy_id AND pss.scrape_site_id = ?", scrapeSiteId).
+		Joins("JOIN user_scrape_site uss ON uss.scrape_site_id = pss.scrape_site_id AND uss.user_id = ?", userId)
 
 	query = applyProxyPageSort(query, options)
 
 	filterQuery := buildProxyListFilterQuery(userId, filters)
 	if filterQuery != nil {
-		query = query.Where("proxies.id IN (?)", filterQuery)
+		query = query.Where("ufi.proxy_id IN (?)", filterQuery)
 	}
 
 	rows := make([]dto.ProxyInfoRow, 0)
@@ -603,14 +561,14 @@ func GetScrapeSiteProxyPageWithOptions(userId uint, scrapeSiteId uint64, page in
 		}
 
 		var total int64
-		countQuery := DB.Model(&domain.Proxy{}).
-			Joins("JOIN user_proxies up ON up.proxy_id = proxies.id AND up.user_id = ?", userId).
-			Joins("JOIN proxy_scrape_site pss ON pss.proxy_id = proxies.id AND pss.scrape_site_id = ?", scrapeSiteId).
+		countQuery := DB.Table("user_proxy_filter_indexes ufi").
+			Where("ufi.user_id = ?", userId).
+			Joins("JOIN proxy_scrape_site pss ON pss.proxy_id = ufi.proxy_id AND pss.scrape_site_id = ?", scrapeSiteId).
 			Joins("JOIN user_scrape_site uss ON uss.scrape_site_id = pss.scrape_site_id AND uss.user_id = ?", userId)
 		if filterQuery != nil {
-			countQuery = countQuery.Where("proxies.id IN (?)", filterQuery)
+			countQuery = countQuery.Where("ufi.proxy_id IN (?)", filterQuery)
 		}
-		if err := countQuery.Distinct("proxies.id").Count(&total).Error; err != nil {
+		if err := countQuery.Distinct("ufi.proxy_id").Count(&total).Error; err != nil {
 			return proxies, 0, err
 		}
 
@@ -748,6 +706,15 @@ func DeleteScrapeSiteRelation(userId uint, scrapeSite []int) (int64, []domain.Sc
 
 		if result.Error != nil {
 			return totalDeleted, nil, result.Error
+		}
+
+		if DB.Migrator().HasTable(&domain.UserScrapeSourceStat{}) {
+			if err := DB.
+				Where("user_id = ?", userId).
+				Where("scrape_site_id IN ?", chunk).
+				Delete(&domain.UserScrapeSourceStat{}).Error; err != nil {
+				return totalDeleted, nil, err
+			}
 		}
 
 		totalDeleted += result.RowsAffected

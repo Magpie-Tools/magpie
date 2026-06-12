@@ -33,7 +33,13 @@ func updateProxyStatusCaches(tx *gorm.DB, stats []domain.ProxyStatistic) error {
 		return nil
 	}
 
-	return upsertProxyOverallStatuses(tx, proxyIDs)
+	if err := upsertProxyOverallStatuses(tx, proxyIDs); err != nil {
+		return err
+	}
+	if err := refreshUserProxyFilterIndexesForProxyIDs(tx, proxyIDs); err != nil {
+		return err
+	}
+	return refreshUserScrapeSourceStatsForProxyIDs(tx, proxyIDs)
 }
 
 func latestProxyStatusEntries(stats []domain.ProxyStatistic) ([]domain.ProxyLatestStatistic, []uint64) {

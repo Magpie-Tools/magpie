@@ -179,7 +179,15 @@ func applyProxyGeoUpdates(ctx context.Context, updates []proxyGeoUpdate) error {
 			strings.Join(placeholders, ","),
 		)
 
-		if err := DB.WithContext(ctx).Exec(query, args...).Error; err != nil {
+		db := DB.WithContext(ctx)
+		if err := db.Exec(query, args...).Error; err != nil {
+			return err
+		}
+		proxyIDs := make([]uint64, 0, len(batch))
+		for _, update := range batch {
+			proxyIDs = append(proxyIDs, update.ID)
+		}
+		if err := refreshUserProxyFilterIndexesForProxyIDs(db, proxyIDs); err != nil {
 			return err
 		}
 	}

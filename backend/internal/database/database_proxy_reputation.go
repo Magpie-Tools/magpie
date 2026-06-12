@@ -471,7 +471,19 @@ func upsertProxyReputations(ctx context.Context, reputations []domain.ProxyReput
 		}
 	}
 
-	return nil
+	proxyIDs := make([]uint64, 0, len(reputations))
+	seen := make(map[uint64]struct{}, len(reputations))
+	for _, rep := range reputations {
+		if rep.ProxyID == 0 {
+			continue
+		}
+		if _, exists := seen[rep.ProxyID]; exists {
+			continue
+		}
+		seen[rep.ProxyID] = struct{}{}
+		proxyIDs = append(proxyIDs, rep.ProxyID)
+	}
+	return refreshUserProxyFilterIndexesForProxyIDs(db, proxyIDs)
 }
 
 func upsertProxyReputationsChunk(db *gorm.DB, reps []domain.ProxyReputation) error {
