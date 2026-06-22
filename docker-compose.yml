@@ -1,3 +1,9 @@
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "${DOCKER_LOG_MAX_SIZE:-100m}"
+    max-file: "${DOCKER_LOG_MAX_FILE:-3}"
+
 services:
   backend:
     image: kuuchen/magpie-backend:${MAGPIE_IMAGE_TAG:-latest}
@@ -48,6 +54,7 @@ services:
         reservations:
           cpus: "${BACKEND_CPU_RESERVATION:-0.50}"
           memory: "${BACKEND_MEMORY_RESERVATION:-256M}"
+    logging: *default-logging
     restart: unless-stopped
 
   frontend:
@@ -65,6 +72,7 @@ services:
         reservations:
           cpus: "${FRONTEND_CPU_RESERVATION:-0.25}"
           memory: "${FRONTEND_MEMORY_RESERVATION:-128M}"
+    logging: *default-logging
     restart: unless-stopped
 
   postgres:
@@ -86,6 +94,7 @@ services:
         reservations:
           cpus: "${POSTGRES_CPU_RESERVATION:-0.50}"
           memory: "${POSTGRES_MEMORY_RESERVATION:-256M}"
+    logging: *default-logging
     restart: unless-stopped
 
   redis:
@@ -113,6 +122,7 @@ services:
         reservations:
           cpus: "${REDIS_CPU_RESERVATION:-0.25}"
           memory: "${REDIS_MEMORY_RESERVATION:-128M}"
+    logging: *default-logging
     restart: unless-stopped
 
 volumes:
