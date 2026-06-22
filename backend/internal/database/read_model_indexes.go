@@ -3,11 +3,28 @@ package database
 import (
 	"context"
 	"fmt"
+	"sync"
+	"time"
 
 	"magpie/internal/domain"
+	"magpie/internal/support"
 
 	"github.com/charmbracelet/log"
 	"gorm.io/gorm"
+)
+
+const (
+	defaultReadModelRefreshIntervalSeconds = 5
+	defaultReadModelRefreshBatchSize       = 5000
+	defaultReadModelRefreshMaxBatches      = 4
+	envReadModelRefreshIntervalSeconds     = "READ_MODEL_REFRESH_INTERVAL_SECONDS"
+	envReadModelRefreshBatchSize           = "READ_MODEL_REFRESH_BATCH_SIZE"
+	envReadModelRefreshMaxBatches          = "READ_MODEL_REFRESH_MAX_BATCHES"
+)
+
+var (
+	readModelDirtyMu       sync.Mutex
+	readModelDirtyProxyIDs = make(map[uint64]struct{})
 )
 
 func ensureReadModelBackfill(db *gorm.DB) error {
@@ -124,6 +141,145 @@ func ensureReadModelSchema(db *gorm.DB) error {
 	}
 
 	return nil
+}
+
+func QueueReadModelRefreshForProxyIDs(proxyIDs []uint64) {
+	if len(proxyIDs) == 0 {
+		return
+	}
+
+	readModelDirtyMu.Lock()
+	for _, proxyID := range proxyIDs {
+		if proxyID != 0 {
+			readModelDirtyProxyIDs[proxyID] = struct{}{}
+		}
+	}
+	readModelDirtyMu.Unlock()
+
+}
+
+func StartReadModelRefreshRoutine(ctx context.Context) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	interval := readModelRefreshInterval()
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			flushReadModelDirtyProxyIDs(context.Background(), true)
+			return
+		case <-ticker.C:
+			flushReadModelDirtyProxyIDs(ctx, false)
+		}
+	}
+}
+
+func flushReadModelDirtyProxyIDs(ctx context.Context, drainAll bool) {
+	if DB == nil {
+		return
+	}
+
+	maxBatches := readModelRefreshMaxBatches()
+	if drainAll {
+		maxBatches = 0
+	}
+
+	processed := 0
+	for {
+		if !drainAll && processed >= maxBatches {
+			return
+		}
+
+		proxyIDs := popDirtyReadModelProxyIDs(readModelRefreshBatchSize())
+		if len(proxyIDs) == 0 {
+			return
+		}
+
+		db := DB
+		if ctx != nil {
+			db = db.WithContext(ctx)
+		}
+
+		start := time.Now()
+		if err := refreshUserProxyFilterIndexesForProxyIDs(db, proxyIDs); err != nil {
+			requeueDirtyReadModelProxyIDs(proxyIDs)
+			log.Warn("read model refresh: proxy filter index failed", "error", err, "count", len(proxyIDs))
+			return
+		}
+		if err := refreshUserScrapeSourceStatsForProxyIDs(db, proxyIDs); err != nil {
+			requeueDirtyReadModelProxyIDs(proxyIDs)
+			log.Warn("read model refresh: scrape-source stats failed", "error", err, "count", len(proxyIDs))
+			return
+		}
+
+		log.Debug("Read models refreshed", "proxy_count", len(proxyIDs), "duration", time.Since(start))
+		processed++
+	}
+}
+
+func popDirtyReadModelProxyIDs(limit int) []uint64 {
+	if limit <= 0 {
+		limit = defaultReadModelRefreshBatchSize
+	}
+
+	readModelDirtyMu.Lock()
+	defer readModelDirtyMu.Unlock()
+
+	if len(readModelDirtyProxyIDs) == 0 {
+		return nil
+	}
+
+	proxyIDs := make([]uint64, 0, min(limit, len(readModelDirtyProxyIDs)))
+	for proxyID := range readModelDirtyProxyIDs {
+		proxyIDs = append(proxyIDs, proxyID)
+		delete(readModelDirtyProxyIDs, proxyID)
+		if len(proxyIDs) >= limit {
+			break
+		}
+	}
+	return proxyIDs
+}
+
+func requeueDirtyReadModelProxyIDs(proxyIDs []uint64) {
+	if len(proxyIDs) == 0 {
+		return
+	}
+
+	readModelDirtyMu.Lock()
+	for _, proxyID := range proxyIDs {
+		if proxyID != 0 {
+			readModelDirtyProxyIDs[proxyID] = struct{}{}
+		}
+	}
+	readModelDirtyMu.Unlock()
+}
+
+func readModelRefreshInterval() time.Duration {
+	seconds := support.GetEnvInt(envReadModelRefreshIntervalSeconds, defaultReadModelRefreshIntervalSeconds)
+	if seconds <= 0 {
+		seconds = defaultReadModelRefreshIntervalSeconds
+	}
+	return time.Duration(seconds) * time.Second
+}
+
+func readModelRefreshBatchSize() int {
+	size := support.GetEnvInt(envReadModelRefreshBatchSize, defaultReadModelRefreshBatchSize)
+	if size <= 0 {
+		return defaultReadModelRefreshBatchSize
+	}
+	return size
+}
+
+func readModelRefreshMaxBatches() int {
+	maxBatches := support.GetEnvInt(envReadModelRefreshMaxBatches, defaultReadModelRefreshMaxBatches)
+	if maxBatches <= 0 {
+		return defaultReadModelRefreshMaxBatches
+	}
+	return maxBatches
 }
 
 func refreshAllUserProxyFilterIndexes(db *gorm.DB) error {

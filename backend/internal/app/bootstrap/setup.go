@@ -168,6 +168,7 @@ func Setup(ctx context.Context) error {
 	// Routines
 
 	go judges.StartJudgeRoutine(ctx)
+	go database.StartReadModelRefreshRoutine(ctx)
 	go jobruntime.StartDashboardCacheRoutine(ctx)
 	go jobruntime.StartProxyStatisticsRoutine(ctx)
 	go jobruntime.StartProxyStatisticsRetentionRoutine(ctx)

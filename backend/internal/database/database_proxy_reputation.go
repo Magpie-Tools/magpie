@@ -483,7 +483,8 @@ func upsertProxyReputations(ctx context.Context, reputations []domain.ProxyReput
 		seen[rep.ProxyID] = struct{}{}
 		proxyIDs = append(proxyIDs, rep.ProxyID)
 	}
-	return refreshUserProxyFilterIndexesForProxyIDs(db, proxyIDs)
+	QueueReadModelRefreshForProxyIDs(proxyIDs)
+	return nil
 }
 
 func upsertProxyReputationsChunk(db *gorm.DB, reps []domain.ProxyReputation) error {

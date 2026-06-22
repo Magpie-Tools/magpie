@@ -187,9 +187,7 @@ func applyProxyGeoUpdates(ctx context.Context, updates []proxyGeoUpdate) error {
 		for _, update := range batch {
 			proxyIDs = append(proxyIDs, update.ID)
 		}
-		if err := refreshUserProxyFilterIndexesForProxyIDs(db, proxyIDs); err != nil {
-			return err
-		}
+		QueueReadModelRefreshForProxyIDs(proxyIDs)
 	}
 
 	return nil

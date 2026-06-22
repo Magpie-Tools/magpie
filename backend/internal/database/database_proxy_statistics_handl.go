@@ -84,6 +84,8 @@ func InsertProxyStatistics(ctx context.Context, statistics []domain.ProxyStatist
 		}
 	}()
 
+	proxyIDs := collectProxyIDsFromStatistics(statistics)
+
 	if err := tx.CreateInBatches(statistics, batchSize).Error; err != nil {
 		tx.Rollback()
 		return err
@@ -99,5 +101,30 @@ func InsertProxyStatistics(ctx context.Context, statistics []domain.ProxyStatist
 		return err
 	}
 
-	return tx.Commit().Error
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	QueueReadModelRefreshForProxyIDs(proxyIDs)
+	return nil
+}
+
+func collectProxyIDsFromStatistics(statistics []domain.ProxyStatistic) []uint64 {
+	if len(statistics) == 0 {
+		return nil
+	}
+
+	seen := make(map[uint64]struct{}, len(statistics))
+	proxyIDs := make([]uint64, 0, len(statistics))
+	for _, stat := range statistics {
+		if stat.ProxyID == 0 {
+			continue
+		}
+		if _, exists := seen[stat.ProxyID]; exists {
+			continue
+		}
+		seen[stat.ProxyID] = struct{}{}
+		proxyIDs = append(proxyIDs, stat.ProxyID)
+	}
+	return proxyIDs
 }
