@@ -1,6 +1,6 @@
 $ErrorActionPreference = "Stop"
 
-$repoOwner = if ($env:MAGPIE_REPO_OWNER) { $env:MAGPIE_REPO_OWNER } else { "Kuucheen" }
+$repoOwner = if ($env:MAGPIE_REPO_OWNER) { $env:MAGPIE_REPO_OWNER } else { "Magpie-Tools" }
 $repoName  = if ($env:MAGPIE_REPO_NAME)  { $env:MAGPIE_REPO_NAME }  else { "magpie" }
 $repoRef   = if ($env:MAGPIE_REPO_REF)   { $env:MAGPIE_REPO_REF }   else { "master" }
 $repoRefPath = if ($repoRef -like "refs/*") { $repoRef } else { "refs/heads/$repoRef" }
@@ -215,11 +215,32 @@ if ($dbUsername.Contains("`n") -or $dbUsername.Contains("`r")) { throw "DB_USERN
 if ($dbPassword.Contains("`n") -or $dbPassword.Contains("`r")) { throw "DB_PASSWORD must be a single line." }
 if ($dbName.Contains("`n") -or $dbName.Contains("`r")) { throw "DB_NAME must be a single line." }
 
+$backendImage = $env:MAGPIE_BACKEND_IMAGE
+$frontendImage = $env:MAGPIE_FRONTEND_IMAGE
+$backendTag = if ($env:MAGPIE_BACKEND_TAG) { $env:MAGPIE_BACKEND_TAG } else { $env:MAGPIE_IMAGE_TAG }
+$frontendTag = if ($env:MAGPIE_FRONTEND_TAG) { $env:MAGPIE_FRONTEND_TAG } else { $env:MAGPIE_IMAGE_TAG }
+
+$imageSettings = @{
+  MAGPIE_BACKEND_IMAGE = $backendImage
+  MAGPIE_BACKEND_TAG = $backendTag
+  MAGPIE_FRONTEND_IMAGE = $frontendImage
+  MAGPIE_FRONTEND_TAG = $frontendTag
+}
+foreach ($setting in $imageSettings.GetEnumerator()) {
+  if ($setting.Value -and ($setting.Value.Contains("`n") -or $setting.Value.Contains("`r"))) {
+    throw "$($setting.Key) must be a single line."
+  }
+}
+
 $escapedKey = Escape-DotenvValue $key
 $escapedJWTSecret = Escape-DotenvValue $jwtSecret
 $escapedDBName = Escape-DotenvValue $dbName
 $escapedDBUsername = Escape-DotenvValue $dbUsername
 $escapedDBPassword = Escape-DotenvValue $dbPassword
+$escapedBackendImage = if ($backendImage) { Escape-DotenvValue $backendImage } else { "" }
+$escapedFrontendImage = if ($frontendImage) { Escape-DotenvValue $frontendImage } else { "" }
+$escapedBackendTag = if ($backendTag) { Escape-DotenvValue $backendTag } else { "" }
+$escapedFrontendTag = if ($frontendTag) { Escape-DotenvValue $frontendTag } else { "" }
 
 $envLines = @()
 $envLines += "PROXY_ENCRYPTION_KEY=""$escapedKey"""
@@ -229,8 +250,17 @@ if (-not [string]::IsNullOrEmpty($jwtSecret)) {
 $envLines += "DB_NAME=""$escapedDBName"""
 $envLines += "DB_USERNAME=""$escapedDBUsername"""
 $envLines += "DB_PASSWORD=""$escapedDBPassword"""
-if ($env:MAGPIE_IMAGE_TAG) {
-  $envLines += "MAGPIE_IMAGE_TAG=$($env:MAGPIE_IMAGE_TAG)"
+if ($backendImage) {
+  $envLines += "MAGPIE_BACKEND_IMAGE=""$escapedBackendImage"""
+}
+if ($backendTag) {
+  $envLines += "MAGPIE_BACKEND_TAG=""$escapedBackendTag"""
+}
+if ($frontendImage) {
+  $envLines += "MAGPIE_FRONTEND_IMAGE=""$escapedFrontendImage"""
+}
+if ($frontendTag) {
+  $envLines += "MAGPIE_FRONTEND_TAG=""$escapedFrontendTag"""
 }
 
 $envPath = Join-Path (Get-Location) ".env"

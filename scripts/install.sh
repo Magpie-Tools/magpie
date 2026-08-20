@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_OWNER="${MAGPIE_REPO_OWNER:-Kuucheen}"
+REPO_OWNER="${MAGPIE_REPO_OWNER:-Magpie-Tools}"
 REPO_NAME="${MAGPIE_REPO_NAME:-magpie}"
 REPO_REF="${MAGPIE_REPO_REF:-master}"
 if [[ "${REPO_REF}" == refs/* ]]; then
@@ -232,6 +232,18 @@ if [[ "${db_name}" == *$'\n'* || "${db_name}" == *$'\r'* ]]; then
   exit 1
 fi
 
+backend_image="${MAGPIE_BACKEND_IMAGE:-}"
+frontend_image="${MAGPIE_FRONTEND_IMAGE:-}"
+backend_tag="${MAGPIE_BACKEND_TAG:-${MAGPIE_IMAGE_TAG:-}}"
+frontend_tag="${MAGPIE_FRONTEND_TAG:-${MAGPIE_IMAGE_TAG:-}}"
+
+for image_setting in "${backend_image}" "${frontend_image}" "${backend_tag}" "${frontend_tag}"; do
+  if [[ "${image_setting}" == *$'\n'* || "${image_setting}" == *$'\r'* ]]; then
+    echo "Magpie image names and tags must be single-line values." >&2
+    exit 1
+  fi
+done
+
 escaped_key="${key//\\/\\\\}"
 escaped_key="${escaped_key//\"/\\\"}"
 escaped_jwt_secret="${jwt_secret//\\/\\\\}"
@@ -242,6 +254,14 @@ escaped_db_username="${db_username//\\/\\\\}"
 escaped_db_username="${escaped_db_username//\"/\\\"}"
 escaped_db_password="${db_password//\\/\\\\}"
 escaped_db_password="${escaped_db_password//\"/\\\"}"
+escaped_backend_image="${backend_image//\\/\\\\}"
+escaped_backend_image="${escaped_backend_image//\"/\\\"}"
+escaped_frontend_image="${frontend_image//\\/\\\\}"
+escaped_frontend_image="${escaped_frontend_image//\"/\\\"}"
+escaped_backend_tag="${backend_tag//\\/\\\\}"
+escaped_backend_tag="${escaped_backend_tag//\"/\\\"}"
+escaped_frontend_tag="${frontend_tag//\\/\\\\}"
+escaped_frontend_tag="${escaped_frontend_tag//\"/\\\"}"
 
 umask 077
 {
@@ -252,8 +272,17 @@ umask 077
   printf "DB_NAME=\"%s\"\n" "${escaped_db_name}"
   printf "DB_USERNAME=\"%s\"\n" "${escaped_db_username}"
   printf "DB_PASSWORD=\"%s\"\n" "${escaped_db_password}"
-  if [ -n "${MAGPIE_IMAGE_TAG:-}" ]; then
-    printf "MAGPIE_IMAGE_TAG=%s\n" "${MAGPIE_IMAGE_TAG}"
+  if [ -n "${backend_image}" ]; then
+    printf "MAGPIE_BACKEND_IMAGE=\"%s\"\n" "${escaped_backend_image}"
+  fi
+  if [ -n "${backend_tag}" ]; then
+    printf "MAGPIE_BACKEND_TAG=\"%s\"\n" "${escaped_backend_tag}"
+  fi
+  if [ -n "${frontend_image}" ]; then
+    printf "MAGPIE_FRONTEND_IMAGE=\"%s\"\n" "${escaped_frontend_image}"
+  fi
+  if [ -n "${frontend_tag}" ]; then
+    printf "MAGPIE_FRONTEND_TAG=\"%s\"\n" "${escaped_frontend_tag}"
   fi
 } > .env
 

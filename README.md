@@ -1,171 +1,244 @@
 <div align="center">
-  <img src="frontend/src/assets/logo/magpie-logo-thumbnail.png" alt="Magpie logo">
-  <h3>A Multi-user AIO Proxy Manager</h3>
+  <img src="resources/logo/magpie-light-github.png" alt="Magpie logo" width="180">
+  <h3>A multi-user, all-in-one proxy manager</h3>
 </div>
 
 <div align="center">
-  <img src="https://img.shields.io/github/license/Kuucheen/magpie.svg" alt="license">
-  <img src="https://img.shields.io/github/issues/Kuucheen/magpie.svg" alt="issues">
+  <img src="https://img.shields.io/github/license/Magpie-Tools/magpie.svg" alt="license">
+  <img src="https://img.shields.io/github/issues/Magpie-Tools/magpie.svg" alt="issues">
   <a href="https://discord.gg/7FWAGXzhkC">
-      <img src="https://img.shields.io/badge/Discord-%235865F2.svg?&logo=discord&logoColor=white" alt="discord">
+    <img src="https://img.shields.io/badge/Discord-%235865F2.svg?&logo=discord&logoColor=white" alt="discord">
   </a>
   <br>
   <a href="https://magpie.tools">
-      <img src="https://img.shields.io/badge/Website-magpie.tools-0f766e?style=flat-square&logoColor=white" alt="website">
+    <img src="https://img.shields.io/badge/Website-magpie.tools-0f766e?style=flat-square&logoColor=white" alt="website">
   </a>
   <a href="https://magpie.tools/docs/">
-      <img src="https://img.shields.io/badge/Docs-magpie.tools%2Fdocs-1f2937?style=flat-square&logo=gitbook&logoColor=white" alt="docs">
+    <img src="https://img.shields.io/badge/Docs-magpie.tools%2Fdocs-1f2937?style=flat-square&logo=gitbook&logoColor=white" alt="docs">
   </a>
   <br>
   <img src="https://img.shields.io/docker/pulls/kuuchen/magpie-frontend?style=flat-square&logo=docker&label=frontend%20pulls" alt="docker frontend pulls">
   <img src="https://img.shields.io/docker/pulls/kuuchen/magpie-backend?style=flat-square&logo=docker&label=backend%20pulls" alt="docker backend pulls">
-
-
-[//]: # (  <img src="https://img.shields.io/github/stars/Kuucheen/magpie.svg?style=social" alt="stars">)
 </div>
 
 ---
 
-Magpie is a self-hosted proxy manager that turns messy proxy lists into something you can actually use: 
-- it scrapes proxies from public sources
-- continuously checks which ones are alive
-- filters out dead/bad entries
-- assigns each proxy a reputation score (uptime/latency/anonymity)
-- lets you create your own rotating proxy endpoints from the healthy pool
+Magpie is a self-hosted proxy manager that scrapes public proxy sources,
+continuously checks their health, filters bad entries, calculates reputation
+scores, and creates rotating proxy endpoints from the healthy pool.
 
-all via a web dashboard.
+This is the Magpie distribution repository. It connects the independently
+versioned frontend and backend images with PostgreSQL and Redis, and owns the
+install, update, and performance-validation tooling. Application source code
+lives in the component repositories below.
 
-<img src="resources/screenshots/dashboard.png" alt="Dashboard">
+## Repository map
 
+| Repository | Responsibility |
+| --- | --- |
+| [`Magpie-Tools/magpie`](https://github.com/Magpie-Tools/magpie) | Distribution: Docker Compose, installers, update helpers, release configuration, and performance gates |
+| [`Magpie-Tools/magpie-frontend`](https://github.com/Magpie-Tools/magpie-frontend) | Angular application and frontend container image |
+| [`Magpie-Tools/magpie-backend`](https://github.com/Magpie-Tools/magpie-backend) | Go API, background jobs, proxy workers, and backend container image |
+| [`Magpie-Tools/magpie-website`](https://github.com/Magpie-Tools/magpie-website) | `magpie.tools` marketing website |
+| [`Magpie-Tools/magpie-docs`](https://github.com/Magpie-Tools/magpie-docs) | Docusaurus documentation published at `/docs` |
 
-<details>
-    <summary>More Screenshots</summary>
-    <img src="resources/screenshots/proxyList.png" alt="Proxy List">
-    <img src="resources/screenshots/proxyDetail.png" alt="Proxy Details">
-    <img src="resources/screenshots/rotatingProxies.png" alt="Rotating Proxies">
-    <img src="resources/screenshots/accountSettings.png" alt="Account Settings">
-</details>
+The repositories are siblings, not Git submodules. A production installation
+only needs this distribution repository or the one-command installer. It pulls
+the published component images.
 
 ## Features
-- Multi-user
-- Auto-scraping
-- Proxy Checking / Health checks
-- Reputation & filters
-- Rotating proxy endpoints
-- Dashboard + API
-- Application protocols support (HTTP, HTTPS, SOCKS4, SOCKS5)
-- Transport protocols support (TCP, QUIC/HTTP3)
 
-## Quick Start
+- Multi-user web dashboard and API
+- Automatic proxy scraping and health checks
+- Reputation scoring and filters
+- User-defined rotating proxy endpoints
+- HTTP, HTTPS, SOCKS4, and SOCKS5 application protocols
+- TCP and QUIC/HTTP3 transport support
 
-1. **Install Prerequisites:**
-    - [Docker Desktop](https://www.docker.com/) (or Docker Engine + Compose)
+<img src="resources/screenshots/dashboard.png" alt="Magpie dashboard">
 
-2. **One-command install (recommended)**
+<details>
+  <summary>More screenshots</summary>
+  <img src="resources/screenshots/proxyList.png" alt="Proxy list">
+  <img src="resources/screenshots/proxyDetail.png" alt="Proxy details">
+  <img src="resources/screenshots/rotatingProxies.png" alt="Rotating proxies">
+  <img src="resources/screenshots/accountSettings.png" alt="Account settings">
+</details>
 
-   **macOS/Linux**:
-   ```bash
-   curl -fsSL https://raw.githubusercontent.com/Kuucheen/magpie/refs/heads/master/scripts/install.sh | bash
-   ```
-   If you see a Docker socket permission error on Linux, the installer will try to use `sudo` for Docker commands (you may be prompted).  
-   Alternative fix: `sudo usermod -aG docker "$USER"` (then log out/in, or run `newgrp docker`).  
-   Note: `sudo curl ... | bash` still runs `bash` as your user. Try `curl ... | sudo bash` instead.
+## Quick start
 
-   **Windows (PowerShell)**:
-   ```bash
-   iwr -useb https://raw.githubusercontent.com/Kuucheen/magpie/refs/heads/master/scripts/install.ps1 | iex
-   ```
+Prerequisite: [Docker Desktop](https://www.docker.com/) or Docker Engine with
+Docker Compose.
 
-   This creates a `magpie/` folder with a `docker-compose.yml` and `.env`, then starts the stack.
+### One-command install
 
-3. **Required secrets** – Magpie requires:
-   - `PROXY_ENCRYPTION_KEY` to encrypt stored proxy secrets (keep it stable between restarts/updates)
+macOS/Linux:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Magpie-Tools/magpie/refs/heads/master/scripts/install.sh | bash
+```
+
+Windows PowerShell:
+
+```powershell
+iwr -useb https://raw.githubusercontent.com/Magpie-Tools/magpie/refs/heads/master/scripts/install.ps1 | iex
+```
+
+The installer creates a `magpie/` deployment directory, generates `.env`, pulls
+the published images, and starts the complete stack.
+
+If Docker reports a socket permission error on Linux, add your user to the
+Docker group and start a new login session:
+
+```bash
+sudo usermod -aG docker "$USER"
+```
+
+### Clone and run
+
+```bash
+git clone https://github.com/Magpie-Tools/magpie.git
+cd magpie
+cp .env.example .env
+# Edit .env and replace PROXY_ENCRYPTION_KEY and the example credentials.
+docker compose up -d
+```
+
+Open:
+
+- UI: http://localhost:5050
+- API: http://localhost:5656/api
+- Documentation: https://magpie.tools/docs/
+
+The first registered user becomes the administrator in the default local
+configuration. Optional geolocation and reputation integrations are available
+under **Admin → Plugins**.
 
 > [!WARNING]
-> `PROXY_ENCRYPTION_KEY` locks all stored secrets (proxy auth, passwords, and ip addresses).  
-> If you start the backend (or update to a new version) with a *different* key than the one used before, decryption fails and previously added proxies will not display or validate.  
-> **Fix:** start the backend again using the **previous key** and everything works like before.  
-> **Only rotate on purpose:** if you need a new key, export your proxies first.
+> Keep `PROXY_ENCRYPTION_KEY` stable across restarts and updates. It encrypts
+> stored proxy credentials, passwords, and IP addresses. Starting the backend
+> with a different key prevents existing secrets from being decrypted. Restore
+> the previous key to regain access; only rotate it through an intentional data
+> migration.
 
-4. **If you don't want to use the installer** 
+The included Compose configuration is intended for local and self-hosted
+deployments. Internet-exposed production deployments should harden secrets,
+database and Redis access, TLS termination, registration policy, and backups.
 
-    Requires [Git](https://git-scm.com/downloads)
+## Component image versions
 
-   ```bash
-   git clone https://github.com/Kuucheen/magpie.git
-   cd magpie
-   cp .env.example .env
-   # edit .env and set PROXY_ENCRYPTION_KEY
-   # optional: override JWT_SECRET
-   # optional: override DB_USERNAME/DB_PASSWORD/DB_NAME
-   # optional: configure MAIL_FROM_ADDRESS/SMTP_HOST for email delivery
-   docker compose up -d
-   ```
-   > `docker-compose.yml` is local/dev oriented. For production deployments, use hardened manifests and secure DB/Redis/TLS settings.
-5. **Dive in**
-    - UI: http://localhost:5050
-    - API: http://localhost:5656/api
-    - Docs: https://magpie.tools/docs/
+Frontend and backend releases can be selected independently in `.env`:
 
-      The first user who registers becomes admin automatically.
+```dotenv
+MAGPIE_BACKEND_IMAGE=kuuchen/magpie-backend
+MAGPIE_BACKEND_TAG=latest
+MAGPIE_FRONTEND_IMAGE=kuuchen/magpie-frontend
+MAGPIE_FRONTEND_TAG=latest
+```
 
-Optional integrations, including geolocation and advanced reputation checks, can be enabled and configured under Admin -> Plugins.
+Pin immutable release tags for reproducible deployments. The legacy
+`MAGPIE_IMAGE_TAG` variable remains supported as a shared fallback; an explicit
+component tag takes precedence.
 
-### Updating
-Use the helper scripts that match how you installed Magpie.
+## Updating
 
-- **If you used the one-command installer**:
-  - Refreshes `docker-compose.yml`, updates image references, pulls the latest images, and restarts the stack.
-  - **macOS/Linux**: 
-      ```bash
-      curl -fsSL https://raw.githubusercontent.com/Kuucheen/magpie/refs/heads/master/scripts/update.sh | bash
-      ```
-      If you see a Docker socket permission error on Linux, the updater will try to use `sudo` for Docker commands (you may be prompted).
-  - **Windows (PowerShell)**: 
-      ```bash
-      iwr -useb https://raw.githubusercontent.com/Kuucheen/magpie/refs/heads/master/scripts/update.ps1 | iex
-      ```
+For an installer-created deployment, refresh the Compose definition, pull
+images, and restart the stack with:
 
-- **If you cloned the project**:
-  - Pulls the latest repo changes and rebuilds the `frontend` and `backend` containers.
-  - **macOS/Linux**:
-    ```bash
-    ./scripts/update-frontend-backend.sh
-    ```
-  - **Windows (Command Prompt)**:
-    ```bash
-    scripts\update-frontend-backend.bat
-    ```
-    Double-click the file or run it from the repo root.
+macOS/Linux:
 
-## Local Development
-- Prerequisites:
-  - Go `1.26.x`
-  - Node.js `20.19+` or `22.12+`
-  - npm
-  - Docker
-- Services: `docker compose up -d postgres redis`
-- Backend: `cd backend && go run ./cmd/magpie`
-- Frontend: `cd frontend && npm install && npm run start`
-- Docs site: `cd website/docs && npm install && npm run start`
+```bash
+curl -fsSL https://raw.githubusercontent.com/Magpie-Tools/magpie/refs/heads/master/scripts/update.sh | bash
+```
 
-Optional email delivery env vars for the backend:
-- `MAIL_FROM_ADDRESS`: sender address used in outbound email, for example `no-reply@example.com`
-- `MAIL_FROM_NAME`: optional display name, for example `Magpie`
-- `PUBLIC_APP_URL`: public frontend base URL used in password reset links, for example `https://magpie.example.com`
-- `SMTP_HOST`: SMTP server host
-- `SMTP_PORT`: SMTP server port, defaults to `587`
-- `SMTP_USERNAME` and `SMTP_PASSWORD`: optional SMTP auth credentials; if one is set, both must be set
-- `PASSWORD_RESET_TOKEN_TTL_MINUTES`: optional reset-link lifetime, defaults to `30`
+Windows PowerShell:
 
-## Attributions & External Sources
-- [AbuseIPDB](https://www.abuseipdb.com/) — logo used with permission when linking to their site.
+```powershell
+iwr -useb https://raw.githubusercontent.com/Magpie-Tools/magpie/refs/heads/master/scripts/update.ps1 | iex
+```
 
-## Community
+For a cloned distribution repository:
+
+```bash
+./scripts/update-stack.sh
+```
+
+Or from Windows Command Prompt:
+
+```bat
+scripts\update-stack.bat
+```
+
+These helpers pull distribution changes and published images; they no longer
+build frontend or backend source from this repository.
+
+## Local development
+
+Clone all five repositories as siblings:
+
+```text
+workspace/
+├── magpie/
+├── magpie-backend/
+├── magpie-frontend/
+├── magpie-website/
+└── magpie-docs/
+```
+
+Use this repository for shared infrastructure:
+
+```bash
+cd magpie
+cp .env.example .env
+# Edit .env first.
+docker compose up -d postgres redis
+```
+
+Then run the component you are developing from its own repository:
+
+- Backend: `cd ../magpie-backend && go run ./cmd/magpie`
+- Frontend: `cd ../magpie-frontend && npm ci && npm run start`
+- Website: `cd ../magpie-website && npm ci && npm run dev`
+- Docs: `cd ../magpie-docs && npm ci && npm run start`
+
+The backend must be configured to use PostgreSQL at `localhost:5434` and Redis
+at `localhost:8946` when those services are started from this Compose file.
+Each component repository contains its own build, test, and development details.
+
+The performance release gate remains in [`scripts/perf`](scripts/perf).
+
+## Publishing the website and documentation
+
+The public site is assembled on this repository's `gh-pages` branch. With all
+five repositories cloned as siblings, publish the website and documentation in
+sequence:
+
+```bash
+cd ../magpie-website
+npm run deploy
+
+cd ../magpie-docs
+npm run deploy
+```
+
+Both component scripts build their source, then call
+[`scripts/publish-pages-artifact.sh`](scripts/publish-pages-artifact.sh) in this
+repository. The website replaces the branch root while preserving `/docs`; the
+documentation deployment replaces only `/docs`.
+
+Set `MAGPIE_DISTRIBUTION_REPO` if this repository is not at `../magpie`. Set
+`MAGPIE_DEPLOY_DRY_RUN=1` to build and validate without changing `gh-pages`, or
+`MAGPIE_DEPLOY_PUSH=0` to create the local `gh-pages` commit without pushing it.
+Run the two deployments sequentially so each starts from the latest branch.
+
+## Attributions and community
+
+- The [AbuseIPDB](https://www.abuseipdb.com/) logo is used with permission when linking to its site
 - Website: https://magpie.tools
 - Docs: https://magpie.tools/docs/
 - Discord: https://discord.gg/7FWAGXzhkC
-- Issues & feature requests: open them on GitHub.
 
 ## License
-Magpie ships under the **GNU Affero General Public License v3.0**. See `LICENSE` for the full text. Contributions are more than welcome.
+
+Magpie is distributed under the GNU Affero General Public License v3.0. See
+[`LICENSE`](LICENSE) for the complete license.

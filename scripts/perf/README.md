@@ -107,7 +107,7 @@ If you run backend with `go run` and only keep Postgres/Redis in compose, captur
 
 ```bash
 # terminal 1
-cd backend
+cd ../magpie-backend
 go run ./cmd/magpie 2>&1 | tee /tmp/magpie-backend.log
 ```
 

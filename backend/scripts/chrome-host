@@ -1,2 +1,0 @@
-#!/usr/bin/env bash
-exec flatpak-spawn --host /usr/bin/chromium "$@"

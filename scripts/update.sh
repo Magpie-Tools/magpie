@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_OWNER="${MAGPIE_REPO_OWNER:-Kuucheen}"
+REPO_OWNER="${MAGPIE_REPO_OWNER:-Magpie-Tools}"
 REPO_NAME="${MAGPIE_REPO_NAME:-magpie}"
 REPO_REF="${MAGPIE_REPO_REF:-master}"
 if [[ "${REPO_REF}" == refs/* ]]; then

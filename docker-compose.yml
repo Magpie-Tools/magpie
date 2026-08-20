@@ -6,7 +6,7 @@ x-logging: &default-logging
 
 services:
   backend:
-    image: kuuchen/magpie-backend:${MAGPIE_IMAGE_TAG:-latest}
+    image: ${MAGPIE_BACKEND_IMAGE:-kuuchen/magpie-backend}:${MAGPIE_BACKEND_TAG:-${MAGPIE_IMAGE_TAG:-latest}}
     container_name: magpie_backend
     command:
       - -rod=bin=/usr/lib/chromium/chromium
@@ -58,7 +58,7 @@ services:
     restart: unless-stopped
 
   frontend:
-    image: kuuchen/magpie-frontend:${MAGPIE_IMAGE_TAG:-latest}
+    image: ${MAGPIE_FRONTEND_IMAGE:-kuuchen/magpie-frontend}:${MAGPIE_FRONTEND_TAG:-${MAGPIE_IMAGE_TAG:-latest}}
     container_name: magpie_frontend
     ports:
       - "5050:80"
