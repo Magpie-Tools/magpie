@@ -161,6 +161,12 @@ download "${ENV_EXAMPLE_URL}" ".env.example" || true
 echo "Pulling images..."
 "${compose_cmd[@]}" -f docker-compose.yml pull
 
+echo "Stopping backend for database migration..."
+"${compose_cmd[@]}" -f docker-compose.yml stop backend
+
+echo "Running database migration..."
+"${compose_cmd[@]}" -f docker-compose.yml run --rm backend --migrate-only
+
 echo "Applying update..."
 "${compose_cmd[@]}" -f docker-compose.yml up -d
 

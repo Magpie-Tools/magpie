@@ -159,6 +159,12 @@ try {
 Write-Host "Pulling images..."
 Invoke-NativeOrThrow -FilePath $composeFile -Arguments @($composeBaseArgs + @("-f", "docker-compose.yml", "pull")) -What "docker compose pull"
 
+Write-Host "Stopping backend for database migration..."
+Invoke-NativeOrThrow -FilePath $composeFile -Arguments @($composeBaseArgs + @("-f", "docker-compose.yml", "stop", "backend")) -What "docker compose stop backend"
+
+Write-Host "Running database migration..."
+Invoke-NativeOrThrow -FilePath $composeFile -Arguments @($composeBaseArgs + @("-f", "docker-compose.yml", "run", "--rm", "backend", "--migrate-only")) -What "backend database migration"
+
 Write-Host "Applying update..."
 Invoke-NativeOrThrow -FilePath $composeFile -Arguments @($composeBaseArgs + @("-f", "docker-compose.yml", "up", "-d")) -What "docker compose up"
 

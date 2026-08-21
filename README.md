@@ -101,6 +101,7 @@ git clone https://github.com/Magpie-Tools/magpie.git
 cd magpie
 cp .env.example .env
 # Edit .env and replace PROXY_ENCRYPTION_KEY and the example credentials.
+docker compose run --rm backend --migrate-only
 docker compose up -d
 ```
 
@@ -116,10 +117,21 @@ under **Admin → Plugins**.
 
 > [!WARNING]
 > Keep `PROXY_ENCRYPTION_KEY` stable across restarts and updates. It encrypts
-> stored proxy credentials, passwords, and IP addresses. Starting the backend
-> with a different key prevents existing secrets from being decrypted. Restore
-> the previous key to regain access; only rotate it through an intentional data
-> migration.
+> proxy usernames and passwords in PostgreSQL and keys route fingerprints.
+> Starting the backend with a different key prevents existing secrets from
+> being decrypted. For checker throughput, Redis queue payloads contain proxy
+> addresses and credentials in plaintext by default. Keep Redis private and
+> protect its access, volumes, and backups. Set
+> `PROXY_QUEUE_ENCRYPT_CREDENTIALS=true` only if you accept its per-check cost.
+
+For production updates, take coordinated PostgreSQL and Redis backups, stop the
+backend, and run the new image's database migration before starting it again:
+
+```bash
+docker compose stop backend
+docker compose run --rm backend --migrate-only
+docker compose up -d
+```
 
 The included Compose configuration is intended for local and self-hosted
 deployments. Internet-exposed production deployments should harden secrets,

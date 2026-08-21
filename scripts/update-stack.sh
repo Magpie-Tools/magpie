@@ -56,6 +56,12 @@ fi
 echo "Pulling component and infrastructure images..."
 "${compose_cmd[@]}" pull
 
+echo "Stopping backend for database migration..."
+"${compose_cmd[@]}" stop backend
+
+echo "Running database migration..."
+"${compose_cmd[@]}" run --rm backend --migrate-only
+
 echo "Applying the updated stack..."
 "${compose_cmd[@]}" up -d --remove-orphans
 

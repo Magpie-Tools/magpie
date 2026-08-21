@@ -16,6 +16,7 @@ services:
       - "20000-20100:20000-20100/udp"
     environment:
       - PROXY_ENCRYPTION_KEY=${PROXY_ENCRYPTION_KEY:?Set PROXY_ENCRYPTION_KEY in .env}
+      - PROXY_QUEUE_ENCRYPT_CREDENTIALS=${PROXY_QUEUE_ENCRYPT_CREDENTIALS:-false}
       - JWT_SECRET=${JWT_SECRET:-magpie-local-compose-jwt-secret-2026}
       - redisUrl=${REDIS_URL:-redis://redis:6379}
       - REDIS_MODE=${REDIS_MODE:-single}
@@ -29,6 +30,7 @@ services:
       - DB_USERNAME=${DB_USERNAME:-magpie_user}
       - DB_PASSWORD=${DB_PASSWORD:-ChangeMeToAStrongDbPassword}
       - DB_SSLMODE=${DB_SSLMODE:-disable}
+      - DB_AUTO_MIGRATE=${DB_AUTO_MIGRATE:-false}
       - MAIL_FROM_ADDRESS=${MAIL_FROM_ADDRESS:-}
       - MAIL_FROM_NAME=${MAIL_FROM_NAME:-}
       - PUBLIC_APP_URL=${PUBLIC_APP_URL:-}
@@ -41,8 +43,10 @@ services:
       - DISABLE_PUBLIC_REGISTRATION=${DISABLE_PUBLIC_REGISTRATION:-false}
       - ENABLE_PUBLIC_FIRST_ADMIN_BOOTSTRAP=${ENABLE_PUBLIC_FIRST_ADMIN_BOOTSTRAP:-true}
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
     volumes:
       - backend_data:/app/data
       - backend_browser_cache:/home/nonroot/.cache/rod
@@ -86,6 +90,12 @@ services:
       - "127.0.0.1:5434:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
     deploy:
       resources:
         limits:

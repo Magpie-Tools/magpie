@@ -289,6 +289,9 @@ umask 077
 echo "Pulling images..."
 "${compose_cmd[@]}" -f docker-compose.yml pull
 
+echo "Preparing database..."
+"${compose_cmd[@]}" -f docker-compose.yml run --rm backend --migrate-only
+
 echo "Starting Magpie..."
 "${compose_cmd[@]}" -f docker-compose.yml up -d
 

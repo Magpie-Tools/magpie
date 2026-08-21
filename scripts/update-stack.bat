@@ -88,6 +88,30 @@ if errorlevel 1 (
   exit /b %ERRORLEVEL%
 )
 
+echo Stopping backend for database migration...
+if "%COMPOSE_ARGS%"=="" (
+  call "%COMPOSE_EXE%" stop backend
+) else (
+  call "%COMPOSE_EXE%" %COMPOSE_ARGS% stop backend
+)
+
+if errorlevel 1 (
+  popd
+  exit /b %ERRORLEVEL%
+)
+
+echo Running database migration...
+if "%COMPOSE_ARGS%"=="" (
+  call "%COMPOSE_EXE%" run --rm backend --migrate-only
+) else (
+  call "%COMPOSE_EXE%" %COMPOSE_ARGS% run --rm backend --migrate-only
+)
+
+if errorlevel 1 (
+  popd
+  exit /b %ERRORLEVEL%
+)
+
 echo Applying the updated stack...
 if "%COMPOSE_ARGS%"=="" (
   call "%COMPOSE_EXE%" up -d --remove-orphans
