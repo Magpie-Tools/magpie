@@ -51,6 +51,7 @@ the published component images.
 - Multi-user web dashboard and API
 - Automatic proxy scraping and health checks
 - Provider hostname, IPv4, and IPv6 proxy import, checking, search, export, and rotation. IP blacklists apply to literal addresses, and automatic scraping remains IPv4-only.
+- User-owned, color-coded proxy tags with multi-tag assignment, import tagging, search, and filtering
 - Reputation scoring and filters
 - User-defined rotating proxy endpoints
 - HTTP, HTTPS, SOCKS4, and SOCKS5 application protocols
