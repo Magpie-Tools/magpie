@@ -50,7 +50,7 @@ the published component images.
 
 - Multi-user web dashboard and API
 - Automatic proxy scraping and health checks
-- IPv4 and IPv6 proxy import, checking, blacklists, export, and rotation. Automatic scraping remains IPv4-only.
+- Provider hostname, IPv4, and IPv6 proxy import, checking, search, export, and rotation. IP blacklists apply to literal addresses, and automatic scraping remains IPv4-only.
 - Reputation scoring and filters
 - User-defined rotating proxy endpoints
 - HTTP, HTTPS, SOCKS4, and SOCKS5 application protocols
@@ -133,6 +133,8 @@ docker compose stop backend
 docker compose run --rm backend --migrate-only
 docker compose up -d
 ```
+
+Do not skip the migration when updating an existing installation. It backfills the canonical proxy host column while retaining the native IP projection used for CIDR search and blacklist matching.
 
 The included Compose configuration is intended for local and self-hosted
 deployments. Internet-exposed production deployments should harden secrets,
