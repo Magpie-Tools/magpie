@@ -50,6 +50,7 @@ the published component images.
 
 - Multi-user web dashboard and API
 - Automatic proxy scraping and health checks
+- IPv4 and IPv6 proxy import, checking, blacklists, export, and rotation. Automatic scraping remains IPv4-only.
 - Reputation scoring and filters
 - User-defined rotating proxy endpoints
 - HTTP, HTTPS, SOCKS4, and SOCKS5 application protocols
