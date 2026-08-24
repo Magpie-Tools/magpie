@@ -56,6 +56,8 @@ fi
 echo "Pulling component and infrastructure images..."
 "${compose_cmd[@]}" pull
 
+echo "Migration safety: confirm you have coordinated PostgreSQL and Redis backups."
+echo "Workspace migrations change resource ownership columns; rollback requires those backups."
 echo "Stopping backend for database migration..."
 "${compose_cmd[@]}" stop backend
 

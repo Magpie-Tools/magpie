@@ -88,6 +88,8 @@ if errorlevel 1 (
   exit /b %ERRORLEVEL%
 )
 
+echo Migration safety: confirm you have coordinated PostgreSQL and Redis backups.
+echo Workspace migrations change resource ownership columns; rollback requires those backups.
 echo Stopping backend for database migration...
 if "%COMPOSE_ARGS%"=="" (
   call "%COMPOSE_EXE%" stop backend

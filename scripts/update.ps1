@@ -159,6 +159,8 @@ try {
 Write-Host "Pulling images..."
 Invoke-NativeOrThrow -FilePath $composeFile -Arguments @($composeBaseArgs + @("-f", "docker-compose.yml", "pull")) -What "docker compose pull"
 
+Write-Host "Migration safety: confirm you have coordinated PostgreSQL and Redis backups."
+Write-Host "Workspace migrations change resource ownership columns; rollback requires those backups."
 Write-Host "Stopping backend for database migration..."
 Invoke-NativeOrThrow -FilePath $composeFile -Arguments @($composeBaseArgs + @("-f", "docker-compose.yml", "stop", "backend")) -What "docker compose stop backend"
 

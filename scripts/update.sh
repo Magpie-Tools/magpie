@@ -161,6 +161,8 @@ download "${ENV_EXAMPLE_URL}" ".env.example" || true
 echo "Pulling images..."
 "${compose_cmd[@]}" -f docker-compose.yml pull
 
+echo "Migration safety: confirm you have coordinated PostgreSQL and Redis backups."
+echo "Workspace migrations change resource ownership columns; rollback requires those backups."
 echo "Stopping backend for database migration..."
 "${compose_cmd[@]}" -f docker-compose.yml stop backend
 

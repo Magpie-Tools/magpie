@@ -48,10 +48,12 @@ the published component images.
 
 ## Features
 
-- Multi-user web dashboard and API
+- Multi-workspace dashboard and API with owner, admin, operator, and viewer roles
+- Workspace-owned capacity, operational settings, managed proxies, tags, sources, judges, and rotators
 - Automatic proxy scraping and health checks
 - Provider hostname, IPv4, and IPv6 proxy import, checking, search, export, and rotation. IP blacklists apply to literal addresses, and automatic scraping remains IPv4-only.
-- User-owned, color-coded proxy tags with multi-tag assignment, import tagging, search, and filtering
+- Workspace-owned, color-coded proxy tags with multi-tag assignment, import tagging, search, and filtering
+- Active, paused, and archived managed-proxy lifecycle; capacity overflow is retained rather than deleted
 - Reputation scoring and filters
 - User-defined rotating proxy endpoints
 - HTTP, HTTPS, SOCKS4, and SOCKS5 application protocols
@@ -135,7 +137,15 @@ docker compose run --rm backend --migrate-only
 docker compose up -d
 ```
 
-Do not skip the migration when updating an existing installation. It backfills the canonical proxy host column while retaining the native IP projection used for CIDR search and blacklist matching.
+Do not skip the migration when updating an existing installation. Workspace-capable
+releases create one personal workspace and owner membership for every existing
+account, move operational ownership from `user_id` to `workspace_id`, and repair
+PostgreSQL foreign keys. Existing resources remain available through the new
+default workspace. The migration is not compatible with older backend images;
+rollback requires the coordinated PostgreSQL and Redis backups.
+
+API clients may select a workspace with `X-Workspace-ID`. When omitted, the
+backend uses the authenticated account's default workspace membership.
 
 The included Compose configuration is intended for local and self-hosted
 deployments. Internet-exposed production deployments should harden secrets,
