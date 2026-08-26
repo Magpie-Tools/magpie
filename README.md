@@ -49,6 +49,7 @@ the published component images.
 ## Features
 
 - Multi-workspace dashboard and API with owner, admin, operator, and viewer roles
+- Account-bound workspace invitations with an in-app inbox and optional email notifications
 - Workspace-owned capacity, operational settings, managed proxies, tags, sources, judges, and rotators
 - Automatic proxy scraping and health checks
 - Provider hostname, IPv4, and IPv6 proxy import, checking, search, export, and rotation. IP blacklists apply to literal addresses, and automatic scraping remains IPv4-only.
@@ -146,6 +147,10 @@ rollback requires the coordinated PostgreSQL and Redis backups.
 
 API clients may select a workspace with `X-Workspace-ID`. When omitted, the
 backend uses the authenticated account's default workspace membership.
+Workspace access is offered through expiring invitations for existing Magpie
+accounts. Accepting an invitation does not change the account's default
+workspace. SMTP is optional; pending invitations remain available in the app
+when email delivery is disabled.
 
 The included Compose configuration is intended for local and self-hosted
 deployments. Internet-exposed production deployments should harden secrets,
