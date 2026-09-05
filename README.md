@@ -203,6 +203,26 @@ scripts\update-stack.bat
 These helpers pull distribution changes and published images; they no longer
 build frontend or backend source from this repository.
 
+## Proxy export timeouts
+
+Proxy exports allow up to 300 seconds of database and formatting work by default.
+Other API responses retain their normal write timeout. Export batches flush as
+ready; disconnecting cancels the export queries. A failed transfer must be retried
+and is not a complete export file.
+
+Compose passes `PROXY_EXPORT_TIMEOUT_SECONDS=300` to the backend and
+`EXPORT_PROXY_READ_TIMEOUT_SECONDS=310` to the frontend nginx container. Set both
+in `.env` to tune exports, keeping nginx's value at least 10 seconds higher.
+The backend allows an extra 5 seconds to write a timeout error before any data
+has been sent. Any additional reverse proxy must allow the same wait for export
+responses. Apply changed values by recreating the frontend and backend services.
+Both updated images are needed for this behavior; updating `.env` alone does not
+add it to older releases.
+
+An export that repeatedly takes over 30 seconds warrants checking database query
+times and resource contention with the checker, even when a higher limit lets it
+finish.
+
 ## Local development
 
 Clone all five repositories as siblings:

@@ -24,6 +24,7 @@ services:
       - REDIS_SENTINEL_ADDRS=${REDIS_SENTINEL_ADDRS:-redis-sentinel-1:26379,redis-sentinel-2:26379,redis-sentinel-3:26379}
       - REDIS_PASSWORD=${REDIS_PASSWORD:-}
       - REDIS_SENTINEL_PASSWORD=${REDIS_SENTINEL_PASSWORD:-}
+      - PROXY_EXPORT_TIMEOUT_SECONDS=${PROXY_EXPORT_TIMEOUT_SECONDS:-300}
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_NAME=${DB_NAME:-magpie}
@@ -65,6 +66,8 @@ services:
   frontend:
     image: ${MAGPIE_FRONTEND_IMAGE:-kuuchen/magpie-frontend}:${MAGPIE_FRONTEND_TAG:-${MAGPIE_IMAGE_TAG:-latest}}
     container_name: magpie_frontend
+    environment:
+      - EXPORT_PROXY_READ_TIMEOUT_SECONDS=${EXPORT_PROXY_READ_TIMEOUT_SECONDS:-310}
     ports:
       - "5050:80"
     depends_on:
