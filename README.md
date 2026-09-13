@@ -332,3 +332,8 @@ builds could exceed PostgreSQL's per-statement limit when saving workspace
 associations or looking up large proxy lists. Inserts now use a separate batch
 size for each table, and large hash lookups are split. This fix requires no
 additional schema migration or environment setting.
+
+### Account profile compatibility
+
+The sidebar displays the signed-in account email using `GET /api/user/profile`.
+Deploy matching frontend and backend releases together so session restoration can access this endpoint.
