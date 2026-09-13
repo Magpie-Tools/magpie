@@ -337,3 +337,10 @@ additional schema migration or environment setting.
 
 The sidebar displays the signed-in account email using `GET /api/user/profile`.
 Deploy matching frontend and backend releases together so session restoration can access this endpoint.
+
+### Proxy table action columns
+
+The proxy list defaults to an ellipsis Actions menu. Select **Actions (buttons)**
+in the column picker for the previous inline buttons. Update the frontend and
+backend together to save this preference; older backends discard the
+`actions_buttons` column identifier.
