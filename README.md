@@ -54,7 +54,7 @@ the published component images.
 - Automatic proxy scraping and health checks
 - Provider hostname, IPv4, and IPv6 proxy import, checking, search, export, and rotation. IP blacklists apply to literal addresses, and automatic scraping remains IPv4-only.
 - Workspace-owned, color-coded proxy tags with multi-tag assignment, import tagging, search, and filtering
-- Active, paused, and archived managed-proxy lifecycle; capacity overflow is retained rather than deleted
+- Active, paused, and archived managed-proxy lifecycle with multi-select list, export, and delete filters; capacity overflow is retained rather than deleted
 - Reputation scoring and filters
 - User-defined rotating proxy endpoints
 - HTTP, HTTPS, SOCKS4, and SOCKS5 application protocols
