@@ -345,3 +345,14 @@ in the column picker for the previous inline buttons. Update the frontend and
 backend together to save this preference; older backends discard the
 `actions_buttons` column identifier. The scrape source list hides Robots Check
 by default; existing saved column selections are preserved.
+
+### Scrape source table sorting
+
+Deploy matching frontend and backend releases for scrape source sorting. The
+frontend sends `sortField` and `sortOrder` to `GET /api/getScrapingSourcesPage/{page}`;
+the backend sorts all matching sources before pagination. Older backends ignore
+these parameters. No schema migration or new environment setting is required.
+
+When validating a release, use more than one page of sources and check URL,
+proxy count, alive count, and health in both directions. Changing the sort should
+return to page one; moving to the next page should preserve the sort and filters.
