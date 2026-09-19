@@ -338,9 +338,10 @@ additional schema migration or environment setting.
 The sidebar displays the signed-in account email using `GET /api/user/profile`.
 Deploy matching frontend and backend releases together so session restoration can access this endpoint.
 
-### Proxy table action columns
+### Table action columns
 
-The proxy list defaults to an ellipsis Actions menu. Select **Actions (buttons)**
+The proxy and scrape source lists default to an ellipsis Actions menu. Select **Actions (buttons)**
 in the column picker for the previous inline buttons. Update the frontend and
 backend together to save this preference; older backends discard the
-`actions_buttons` column identifier.
+`actions_buttons` column identifier. The scrape source list hides Robots Check
+by default; existing saved column selections are preserved.
