@@ -7,6 +7,51 @@ This folder provides a runnable validation harness for million-scale readiness:
 - dropped-statistics budget checks from backend logs
 - one-command release gate runner
 
+## Backend toolchain and dependency checks
+
+Backend source builds use Go `1.27.1`. Before releasing a toolchain or
+dependency upgrade, run these checks from the sibling `magpie-backend`
+repository:
+
+```bash
+go test ./... -count=1
+go test -race ./... -count=1
+go vet ./...
+go build ./cmd/magpie
+go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
+```
+
+Set `MAGPIE_TEST_POSTGRES_DSN` to an isolated PostgreSQL test database to include
+the storage, migration, ingestion, and operation-budget checks. Backend CI
+provides that database automatically.
+
+The backend also has benchmarks for current plaintext queue decoding, real
+Redis dequeue/requeue cycles with one worker and concurrent workers, and HTTP
+checks with normal and oversized judge responses. The concurrent queue case
+uses 32 workers when `GOMAXPROCS=4`. Use a separate Redis instance and an empty
+database for queue benchmarks. From the `magpie` repository root, for example:
+
+```bash
+docker run --rm -d --name magpie-bench-redis \
+  -p 127.0.0.1:16379:6379 redis:7-alpine \
+  redis-server --save '' --appendonly no
+
+cd ../magpie-backend
+REDIS_URL=redis://127.0.0.1:16379 \
+MAGPIE_BENCH_REDIS_URL=redis://127.0.0.1:16379/15 \
+GOMAXPROCS=4 go test -p 1 ./internal/jobs/queue/proxy ./internal/jobs/checker \
+  -run '^$' -bench '^Benchmark' -benchmem -benchtime=1s -count=5
+
+docker stop magpie-bench-redis
+```
+
+Compare the old and proposed versions on the same host with the same workload.
+Record allocations and throughput, plus any cryptographic operations, JSON
+encodes, Redis commands, or database queries added per check. The current
+plaintext payload must reuse its stored route hash, and normal requeues must
+leave the payload untouched. These local benchmarks supplement the load and
+soak gate below.
+
 ## Prerequisites
 
 - running Magpie stack (`docker compose up -d`)
