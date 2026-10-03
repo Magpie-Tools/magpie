@@ -59,7 +59,7 @@ the backend validation and checker benchmarks described in
 - Workspace-owned capacity, operational settings, managed proxies, tags, sources, judges, and rotators
 - Automatic proxy scraping and health checks
 - Provider hostname, IPv4, and IPv6 proxy import, checking, search, export, and rotation. IP blacklists apply to literal addresses, and automatic scraping remains IPv4-only.
-- Workspace-owned, color-coded proxy tags with multi-tag assignment, import tagging, search, and filtering
+- Workspace-owned, color-coded proxy tags with multi-tag assignment, import tagging, automatic source tagging, search, and filtering
 - Active, paused, and archived managed-proxy lifecycle with multi-select list, export, and delete filters; capacity overflow is retained rather than deleted
 - Workspace-wide Pause or Delete action after consecutive proxy check failures. Pause remains the default; deletion affects future failed checks, preserves other workspaces, and allows later rediscovery.
 - Reputation scoring and filters
@@ -164,6 +164,14 @@ deployments. Internet-exposed production deployments should harden secrets,
 database and Redis access, TLS termination, registration policy, and backups.
 
 ## API client upgrade note
+
+Automatic source tags require the updated frontend and backend images. Run the
+backend's `--migrate-only` command before starting the updated workers to create
+the workspace source-tag rule table. Existing sources start with no automatic
+tags, and configuring them affects future scrape results, including rediscovered
+proxies. Rules add missing tags without replacing existing assignments. Update
+all backend workers together because older workers do not apply these rules.
+Source rules add no work to the ordinary proxy checker loop.
 
 GraphQL clients must omit `scrapingSources` from `UpdateUserSettingsInput`.
 That input previously reported success without saving sources and now returns a
