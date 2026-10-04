@@ -52,6 +52,43 @@ plaintext payload must reuse its stored route hash, and normal requeues must
 leave the payload untouched. These local benchmarks supplement the load and
 soak gate below.
 
+## Tag checker rules and shared results
+
+Tag settings resolve from runtime snapshots with no additional per-check
+cryptographic operations, JSON encodes, Redis commands, or database queries.
+Asynchronous statistics persistence adds one evidence-column JSON encode per
+physical event and latest rows for participating workspaces. Shared results
+retain independent workspace verdicts and current configuration keys.
+
+The backend's `docs/performance/tag-checker-settings.md` records snapshot
+lookup, million-assignment retained memory, stream serialization, SQL budgets,
+and PostgreSQL throughput at one and eight workspaces. The eight-workspace
+sample has a substantial persistence cost, so run the load and soak gate with
+the sharing level expected in production. From `magpie-backend`:
+
+```sh
+go test ./internal/checkerconfig -run '^$' -bench '^Benchmark' -benchmem -count=3
+# Set MAGPIE_TEST_POSTGRES_DSN to an isolated test database first.
+go test ./internal/database -run '^TestCheckerEvidencePersistenceOperationBudgetPostgres$' -count=1 -v
+MAGPIE_TEST_CHECKER_SCALE_ROUTES=1000000 \
+  go test ./internal/database -run '^TestCheckerRefreshAndRecentChecksScalePostgres$' -count=1 -v -timeout=20m
+```
+
+The scale regression loads a million routes that all have checker overrides. It
+measures unchanged reconciliation, one-route tag membership and rule edits, and
+the actual recent-checks dashboard query. Allocation limits and SQL execution
+plans catch workspace-wide reads even when projection writes remain scoped.
+The regular suite uses 20,000 routes; the explicit million-route run is a release
+validation gate. Column-only saves have a separate regression asserting that no
+checker refresh occurs.
+
+Keep the queue hash-reuse and scheduling-only requeue regressions in the full
+test suite. Configurations and relevant assignments are refreshed outside
+workers; queue payloads do not carry tag rules. The feature requires the new
+frontend and every backend instance, with `--migrate-only` completed before
+workers restart. Legacy current health starts unknown until matching checks
+arrive, which also affects TCP rotator pools immediately after the upgrade.
+
 ## Prerequisites
 
 - running Magpie stack (`docker compose up -d`)

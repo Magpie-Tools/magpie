@@ -58,6 +58,7 @@ the backend validation and checker benchmarks described in
 - Account-bound workspace invitations with an in-app inbox and optional email notifications
 - Workspace-owned capacity, operational settings, managed proxies, tags, sources, judges, and rotators
 - Automatic proxy scraping and health checks
+- Default and ordered tag checker rules with Replace, Add, Remove, and shared transport, timeout, retries, and inheritance choices per tag
 - Provider hostname, IPv4, and IPv6 proxy import, checking, search, export, and rotation. IP blacklists apply to literal addresses, and automatic scraping remains IPv4-only.
 - Workspace-owned, color-coded proxy tags with multi-tag assignment, import tagging, automatic source tagging, search, and filtering
 - Active, paused, and archived managed-proxy lifecycle with multi-select list, export, and delete filters; capacity overflow is retained rather than deleted
@@ -162,6 +163,41 @@ when email delivery is disabled.
 The included Compose configuration is intended for local and self-hosted
 deployments. Internet-exposed production deployments should harden secrets,
 database and Redis access, TLS termination, registration policy, and backups.
+
+## Tag checker settings upgrade
+
+Update the frontend and all backend replicas together. Run the migration with
+every backend stopped. This release adds protocol defaults, ordered workspace
+tag rules, a sparse projection for tagged checks, and workspace/configuration
+keys on latest statistics. The latest-statistics primary key changes, so older
+backend images must not write to the migrated database.
+
+Existing checker values become shared Default settings with no tag rules. Legacy checks remain in history. Current health
+and TCP rotator eligibility wait for new matching checks because old results
+lack reliable transport and settings attribution. Failure streaks remain saved.
+No new environment variables are required, and queue encryption stays opt-in.
+Restore coordinated PostgreSQL and Redis backups to roll back.
+
+In Checker Settings, select Default or a workspace tag, choose Replace, Add, or
+Remove, and arrange matching tags in the Tag priority popup with drag handles or
+up/down buttons. The top rule has
+highest priority and applies last. Transport, timeout, and retries inherit
+independently and apply to every enabled protocol. Judges, HTTPS-for-SOCKS, and automatic failure actions remain
+workspace-wide. Changes apply at the next scheduled check; empty selections
+skip checking without pausing or deleting the proxy.
+
+REST exposes `checker_settings` and GraphQL exposes `checkerSettings`. Clients
+that omit these fields preserve stored rules and shared profile values. Column
+and judge saves send only their edited fields. Checker refreshes reconcile the
+persisted projection across replicas and rewrite only affected routes and source
+summaries. Unchanged reconciliation skips route reads, and column-only saves skip
+checker refresh. Dashboard caches verify the committed checker generation before
+serving health; recent checks use indexed candidates before fetching evidence.
+Run the updated migration even when upgrading an earlier tag-settings build:
+it adds workspace revision counters, a coalesced route-change journal, and the
+active recent-checks index. No new environment settings are required.
+The [checker guide](https://magpie.tools/docs/user-guide/checker-and-judges)
+and [performance harness](scripts/perf/README.md) explain behavior and validation.
 
 ## API client upgrade note
 
