@@ -52,6 +52,67 @@ plaintext payload must reuse its stored route hash, and normal requeues must
 leave the payload untouched. These local benchmarks supplement the load and
 soak gate below.
 
+## Statistics and queue scaling regressions
+
+Run `--migrate-only` before starting the updated backend. The migration adds
+the statistics event ledger and the durable reputation refresh queue. Stop
+checker instances running the previous queue implementation during the
+upgrade so every active worker uses lease renewal and fenced completion.
+The updated queue marks leases in scheduling scores. Previous workers cannot
+share the queue safely with this implementation. Bulk requeue preserves active
+checks and returns the number of waiting routes actually rescheduled; it leaves
+expired leases available for normal recovery.
+Old and current hashes may coexist for one route after bootstrap. Updated
+workers reconcile them atomically when they encounter an old alias. They merge
+workspace owners and consume the alias while preserving any active current
+lease. This reconciliation requires no queue flush or additional database
+migration; keep the encryption key stable and the shard count consistent.
+
+The backend tests include stream recovery with a partial pending batch,
+transactional replay deduplication, concurrent reputation claims, queue head
+repair, ownership changes during checks, and lease renewal between retries.
+They also cover bulk scheduling during a check, imports from legacy and other
+configured shards, and cancellation during statistics acknowledgement. Stream
+workers leave unacknowledged events pending on shutdown, and recovery applies
+each committed event once through the ledger. The in-memory fallback makes one
+final persistence attempt bounded by the 30-second database timeout.
+Set `MAGPIE_TEST_REDIS_URL` to a disposable Redis database to run recovery
+against real Redis. Without it, recovery tests use miniredis.
+Set `MAGPIE_TEST_QUEUE_REDIS_URL` to a separate empty disposable Redis database
+to run queue races against real Redis. The queue fixture flushes that database.
+The recovery suite includes cancellation and replay of a 5,001-event batch when
+both real Redis and PostgreSQL are configured. Unset `REDIS_URL` and `redisUrl`
+during full suites so connection-failure fixtures can set their own addresses.
+Alias regressions also cover concurrent migrations, current claims and owner
+imports during migration preparation, stale source leases, and expired current
+leases with both plaintext and encrypted compatibility payloads.
+
+`BenchmarkProxyQueueLegacyRekey` measures the compatibility cycle with distinct
+old aliases and eight existing owners per current route. The alias adds a
+ninth owner, exercising the atomic payload merge. Use the same empty
+`MAGPIE_BENCH_REDIS_URL` fixture as the normal cycle benchmark and compare it
+separately from steady-state plaintext throughput.
+
+With `MAGPIE_TEST_POSTGRES_DSN` set, scaling regressions also exercise a
+65,536-route rotator pool, one million managed routes during usage writes,
+200,000 unrelated history rows during uptime selection, and coalesced source
+health updates for a 10,000-route source. The usage test logs component timings
+and verifies that the write does not query inventory.
+
+`BenchmarkCheckerClientCacheChurn` measures distinct-route replacement at
+2,048, 8,192, and 16,384 cache entries with serial and concurrent workers.
+It excludes transport construction and network requests. Add it to the queue
+benchmark comparison before changing worker counts.
+
+Compose forwards `PROXY_REPUTATION_REFRESH_WORKERS`,
+`PROXY_REPUTATION_REFRESH_BATCH_SIZE`, and
+`PROXY_REPUTATION_REFRESH_INTERVAL_SECONDS`. Workers drain persisted work
+continuously, and idle or failed workers wait for the configured interval.
+Monitor `magpie_proxy_reputation_refresh_pending` and
+`magpie_proxy_reputation_refresh_oldest_age_seconds`. Source counts coalesce
+in a separate loop controlled by `SCRAPE_SOURCE_STATS_REFRESH_INTERVAL_SECONDS`
+and `SCRAPE_SOURCE_STATS_REFRESH_BATCH_SIZE`.
+
 ## Tag checker rules and shared results
 
 Tag settings resolve from runtime snapshots with no additional per-check
