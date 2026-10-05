@@ -113,6 +113,30 @@ Monitor `magpie_proxy_reputation_refresh_pending` and
 in a separate loop controlled by `SCRAPE_SOURCE_STATS_REFRESH_INTERVAL_SECONDS`
 and `SCRAPE_SOURCE_STATS_REFRESH_BATCH_SIZE`.
 
+## Bulk proxy deletion
+
+Validate delete-all separately from checker throughput. Bulk deletion processes
+5,000-route batches, deduplicates affected scrape sources, and refreshes source
+counts and health once after the committed batches. The final orphan lookup is
+also batched. No schema or configuration change is required for this correction.
+
+From `magpie-backend`, with an isolated PostgreSQL test database:
+
+```sh
+MAGPIE_TEST_POSTGRES_DSN='host=127.0.0.1 port=55437 user=checker_test password=checker_test dbname=checker_test sslmode=disable' \
+MAGPIE_TEST_BULK_DELETE_ROUTES=70000 \
+  go test ./internal/database -run '^TestBulkProxyDeletion' -count=1 -v -timeout=10m
+```
+
+The fixture includes 41 overlapping sources, four checker rules, tagged plan
+cascades, source health, usage, and ownership shared with another workspace. It
+asserts one source-health aggregate, successful orphan loading beyond PostgreSQL's
+parameter limit, and correct counts when a later batch fails. The backend's
+`docs/performance/tag-checker-settings.md` records before/after component timings
+and their limits. Also measure API completion while checkers and scrapers run at
+the intended production load; the database fixture excludes Redis cleanup and
+live snapshot reconciliation.
+
 ## Tag checker rules and shared results
 
 Tag settings resolve from runtime snapshots with no additional per-check
