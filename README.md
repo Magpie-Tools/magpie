@@ -199,6 +199,13 @@ active recent-checks index. No new environment settings are required.
 The [checker guide](https://magpie.tools/docs/user-guide/checker-and-judges)
 and [performance harness](scripts/perf/README.md) explain behavior and validation.
 
+Queue interval synchronization now starts after instance settings load. Older
+builds could publish a one-second placeholder when a test, migration, or replica
+started against the shared Redis, causing rapid proxy rechecks. Update and restart
+every backend replica to restore the configured interval. Existing due entries
+converge through normal requeue. This fix needs no database migration or new
+environment setting; tag rules continue to use the global checker interval.
+
 ## API client upgrade note
 
 Automatic source tags require the updated frontend and backend images. Run the
@@ -316,6 +323,10 @@ Then run the component you are developing from its own repository:
 The backend must be configured to use PostgreSQL at `localhost:5434` and Redis
 at `localhost:8946` when those services are started from this Compose file.
 Each component repository contains its own build, test, and development details.
+
+Run backend tests and benchmarks against disposable PostgreSQL and Redis
+instances. Keep their Redis databases separate from the running development
+stack and from each other; queue concurrency fixtures flush their test database.
 
 The performance release gate remains in [`scripts/perf`](scripts/perf).
 
