@@ -56,6 +56,7 @@ the backend validation and checker benchmarks described in
 
 - Multi-workspace dashboard and API with owner, admin, operator, and viewer roles
 - Account-bound workspace invitations with an in-app inbox and optional email notifications
+- Workspace and rotating-pool alerts with incident history and email, Slack, Discord, and webhook delivery
 - Workspace-owned capacity, operational settings, managed proxies, tags, sources, judges, and rotators
 - Automatic proxy scraping and health checks
 - Default and ordered tag checker rules with Replace, Add, Remove, and shared transport, timeout, retries, and inheritance choices per tag
@@ -163,6 +164,63 @@ when email delivery is disabled.
 The included Compose configuration is intended for local and self-hosted
 deployments. Internet-exposed production deployments should harden secrets,
 database and Redis access, TLS termination, registration policy, and backups.
+
+## Alerts setup
+
+Run the normal `--migrate-only` upgrade step with all backend instances stopped
+before starting an alerts-capable backend. It creates workspace-owned alert
+rules, destinations, incidents, and delivery records. Update the frontend to
+expose the new `/alerts` page. Existing workspaces start with no alert rules.
+
+Workspace admins and owners configure shared destinations; operators configure
+rules, and viewers can read alert history. Email uses the existing `MAIL_FROM_*`
+and `SMTP_*` configuration. Slack and Discord use incoming webhook URLs, and
+generic webhooks support optional HMAC-SHA256 signatures. Destination targets
+and signing secrets use the stable `PROXY_ENCRYPTION_KEY` and are write-only
+through the API. PostgreSQL backups contain incident history and encrypted
+destinations, so retain the key with your normal secret backup process.
+
+Discord and Slack destinations can optionally mention a selected audience,
+including a Discord role ID or a Slack user group ID. Mentions default to off
+for new and existing destinations. Run migrations before starting a backend
+with mention settings. Chat alerts use native timestamps with an ISO timestamp
+below; email includes readable UTC time and the ISO timestamp.
+
+The evaluator also requires the migration that adds internal attempt timestamps
+to alert rules. Those timestamps preserve scheduling priority across timeouts
+and leadership changes. Existing measurements and incidents remain intact.
+Evaluation uses four PostgreSQL workers with separate query budgets. Each worker
+evaluates a workspace's rules together, batching state, incident, and outbox
+writes. Whole-workspace route counts share grouped reads of current evidence;
+pool rules reuse counts for identical eligibility filters. Each backend instance
+drains notifications through ten workers, polling every five seconds when idle.
+These limits require no new environment variables or additional migrations
+beyond the attempt-timestamp migration above.
+
+The cadence regression covers 2,000 workspaces with 100 rules each on two-CPU
+PostgreSQL. All 200,000 rules completed each of six consecutive passes in
+19–30 seconds with one destination per rule, including opening and recovering
+200,000 incidents and queuing 400,000 notifications. See the backend's
+`docs/adr/0012-evaluate-alerts-from-existing-workspace-measurements.md` for the
+workload, exact measurements, and reproducible test command. Database history
+size, pool filters, notification fanout, and other database traffic affect
+capacity; measure those workloads on the deployment's hardware.
+
+Rules monitor usable-route minima, checker success-rate minima, or average
+successful-check latency maxima. Counts follow the current rotating policy;
+rotator success/latency measurements cover workspace checks for its upstream
+protocol over TCP. Two-minute breach and recovery periods limit noise, with
+15-minute windows and minimum samples for checker metrics. Recent check history
+survives managed-proxy deletion for the observation window. Evaluation and
+delivery run outside the checker loop and add no operations per proxy check.
+
+Webhook requests follow the existing outbound network restrictions and reject
+redirects. `ALLOW_PRIVATE_NETWORK_EGRESS=false` is the Compose default. Set it
+explicitly to `true` only when internal webhook targets or HTTP generic
+webhooks are required; it also affects other application outbound requests.
+
+See the [alerts guide](https://magpie.tools/docs/user-guide/alerts) for incident,
+retry, and retention behavior.
 
 ## Tag checker settings upgrade
 
