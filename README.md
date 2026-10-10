@@ -46,9 +46,9 @@ The repositories are siblings, not Git submodules. A production installation
 only needs this distribution repository or the one-command installer. It pulls
 the published component images.
 
-Backend source builds require Go `1.27.1`. Backend CI reads the version from
+Backend source builds require Go `1.27.2`. Backend CI reads the version from
 `magpie-backend/go.mod`, and its Docker builder uses the matching
-`golang:1.27.1-alpine` image. Toolchain and dependency upgrades must also pass
+`golang:1.27.2-alpine` image. Toolchain and dependency upgrades must also pass
 the backend validation and checker benchmarks described in
 [`scripts/perf`](scripts/perf/README.md).
 
