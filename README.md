@@ -33,13 +33,12 @@ dashboard, and connect your applications through the API or a rotating proxy.
 ## Features
 
 - Collects proxies automatically from web sources and supports imports of proxy lists and provider endpoints.
-- Continuously checks HTTP, HTTPS, SOCKS4, and SOCKS5 proxies, with checker rules for different tags.
+- Continuously checks HTTP, HTTPS, SOCKS4, and/or SOCKS5 proxies, with checker rules for different tags.
 - Provides rotating proxy endpoints that select healthy upstream proxies.
 - Tracks proxy health, latency, uptime, and reputation.
 - Supports tags, search, filters, and exports for provider hostnames, IPv4, and IPv6 proxies.
 - Supports shared workspaces with roles and invitations.
 - Sends workspace and pool-health alerts by email, Slack, Discord, or webhook.
-- Provides REST and GraphQL APIs for automated proxy management.
 
 <img src="resources/screenshots/dashboard.png" alt="Magpie dashboard">
 
