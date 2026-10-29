@@ -40,6 +40,12 @@ dashboard, and connect your applications through the API or a rotating proxy.
 - Supports shared workspaces with roles and invitations.
 - Sends workspace and pool-health alerts by email, Slack, Discord, or webhook.
 
+Proxy network types are estimates based on local GeoLite data and cached reverse
+DNS. Known hosting networks keep their datacenter classification; generic words
+such as `ip` or `static` do not imply residential access. Existing labels update
+during background geo refresh. See [estimated proxy types](https://magpie.tools/docs/user-guide/proxies#estimated-proxy-type)
+for the classification rules and limitations.
+
 <img src="resources/screenshots/dashboard.png" alt="Magpie dashboard">
 
 <details>
