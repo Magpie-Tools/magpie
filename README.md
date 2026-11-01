@@ -69,9 +69,6 @@ Windows PowerShell:
 irm https://magpie.tools/install.ps1 | iex
 ```
 
-Both commands download the scripts in [`scripts/`](scripts), which are
-published to magpie.tools whenever they change on `master`.
-
 The installer asks for a proxy encryption key, creates a `magpie/` deployment
 directory, generates the remaining credentials, and starts the stack.
 
