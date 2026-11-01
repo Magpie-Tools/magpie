@@ -2,8 +2,12 @@
 set -euo pipefail
 
 usage() {
-  echo "Usage: $0 SOURCE_DIR {root|docs} COMMIT_MESSAGE" >&2
+  echo "Usage: $0 SOURCE_DIR {root|docs|installers} COMMIT_MESSAGE" >&2
 }
+
+# Served from the site root, e.g. https://magpie.tools/install.sh. The website
+# deploy replaces the root, so these files are carried over between deploys.
+installer_files=(install.sh install.ps1 update.sh update.ps1)
 
 if [ "$#" -ne 3 ]; then
   usage
@@ -29,7 +33,7 @@ dry_run="${MAGPIE_DEPLOY_DRY_RUN:-0}"
 worktree="${MAGPIE_PAGES_WORKTREE:-$(dirname "${distribution_repo}")/.magpie-gh-pages-worktree}"
 
 case "${target}" in
-  root|docs) ;;
+  root|docs|installers) ;;
   *)
     usage
     exit 2
@@ -52,7 +56,14 @@ case "${dry_run}" in
     ;;
 esac
 
-if [ ! -f "${source_dir}/index.html" ]; then
+if [ "${target}" = "installers" ]; then
+  for file in "${installer_files[@]}"; do
+    if [ ! -f "${source_dir}/${file}" ]; then
+      echo "Installer artifact is missing ${file}: ${source_dir}" >&2
+      exit 1
+    fi
+  done
+elif [ ! -f "${source_dir}/index.html" ]; then
   echo "Pages artifact is missing index.html: ${source_dir}" >&2
   exit 1
 fi
@@ -110,8 +121,11 @@ git -C "${worktree}" merge --ff-only "${remote}/${branch}"
 
 case "${target}" in
   root)
-    find "${worktree}" -mindepth 1 -maxdepth 1 \
-      ! -name '.git' ! -name 'docs' -exec rm -rf -- {} +
+    keep=(! -name '.git' ! -name 'docs')
+    for file in "${installer_files[@]}"; do
+      keep+=(! -name "${file}")
+    done
+    find "${worktree}" -mindepth 1 -maxdepth 1 "${keep[@]}" -exec rm -rf -- {} +
     cp -a "${source_dir}"/. "${worktree}"/
     ;;
   docs)
@@ -119,6 +133,11 @@ case "${target}" in
     mkdir -p "${target_dir}"
     find "${target_dir}" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
     cp -a "${source_dir}"/. "${target_dir}"/
+    ;;
+  installers)
+    for file in "${installer_files[@]}"; do
+      cp -- "${source_dir}/${file}" "${worktree}/${file}"
+    done
     ;;
 esac
 

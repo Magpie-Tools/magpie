@@ -60,14 +60,17 @@ Docker Compose.
 macOS/Linux:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Magpie-Tools/magpie/refs/heads/master/scripts/install.sh | bash
+curl -fsSL https://magpie.tools/install.sh | bash
 ```
 
 Windows PowerShell:
 
 ```powershell
-iwr -useb https://raw.githubusercontent.com/Magpie-Tools/magpie/refs/heads/master/scripts/install.ps1 | iex
+irm https://magpie.tools/install.ps1 | iex
 ```
+
+Both commands download the scripts in [`scripts/`](scripts), which are
+published to magpie.tools whenever they change on `master`.
 
 The installer asks for a proxy encryption key, creates a `magpie/` deployment
 directory, generates the remaining credentials, and starts the stack.
@@ -109,13 +112,13 @@ containing `magpie/`:
 macOS/Linux:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Magpie-Tools/magpie/refs/heads/master/scripts/update.sh | bash
+curl -fsSL https://magpie.tools/update.sh | bash
 ```
 
 Windows PowerShell:
 
 ```powershell
-iwr -useb https://raw.githubusercontent.com/Magpie-Tools/magpie/refs/heads/master/scripts/update.ps1 | iex
+irm https://magpie.tools/update.ps1 | iex
 ```
 
 For a cloned repository, run this from its root:

@@ -1,0 +1,37 @@
+name: Publish installers
+
+# Serves the install and update scripts from https://magpie.tools/ so the
+# one-command install stays short. The copies on gh-pages are refreshed
+# whenever the scripts change on master.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - scripts/install.sh
+      - scripts/install.ps1
+      - scripts/update.sh
+      - scripts/update.ps1
+      - scripts/publish-pages-artifact.sh
+      - .github/workflows/publish-installers.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gh-pages-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: find scripts -maxdepth 1 -name '*.sh' -print0 | xargs -0 -n1 bash -n
+      - name: Configure Git identity
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email '41898282+github-actions[bot]@users.noreply.github.com'
+      - name: Publish to gh-pages
+        run: scripts/publish-pages-artifact.sh scripts installers "Publish installers from ${GITHUB_SHA::7}"
