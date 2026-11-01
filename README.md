@@ -1,5 +1,8 @@
 <div align="center">
-  <img src="resources/logo/magpie-light-github.png" alt="Magpie logo" width="180">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="resources/logo/magpie-logo-on-dark.svg">
+    <img src="resources/logo/magpie-logo-on-light.svg" alt="Magpie logo" width="120">
+  </picture>
   <h3>Self-hosted proxy management for you and your team</h3>
 </div>
 
@@ -45,9 +48,9 @@ dashboard, and connect your applications through the API or a rotating proxy.
 <details>
   <summary>More screenshots</summary>
   <img src="resources/screenshots/proxyList.png" alt="Proxy list">
-  <img src="resources/screenshots/proxyDetail.png" alt="Proxy details">
-  <img src="resources/screenshots/rotatingProxies.png" alt="Rotating proxies">
-  <img src="resources/screenshots/accountSettings.png" alt="Account settings">
+  <img src="resources/screenshots/addProxies.png" alt="Add proxies">
+  <img src="resources/screenshots/scrapeSources.png" alt="Scrape sources">
+  <img src="resources/screenshots/alerts.png" alt="Alert rules">
 </details>
 
 ## Install
