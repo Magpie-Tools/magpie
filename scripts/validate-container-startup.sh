@@ -20,7 +20,7 @@ docker run -d --name "${TASK_PREFIX}-postgres" --network "${NETWORK}" --network-
   -e POSTGRES_USER=startup_test -e POSTGRES_PASSWORD=startup_test_isolated_password -e POSTGRES_DB=startup_test postgres:17-alpine >/dev/null
 docker run -d --name "${TASK_PREFIX}-redis" --network "${NETWORK}" --network-alias redis redis:7-alpine >/dev/null
 for attempt in {1..60}; do
-  if docker exec "${TASK_PREFIX}-postgres" pg_isready -U startup_test -d startup_test >/dev/null 2>&1; then break; fi
+  if docker exec "${TASK_PREFIX}-postgres" pg_isready -h 127.0.0.1 -U startup_test -d startup_test >/dev/null 2>&1; then break; fi
   if [ "${attempt}" = "60" ]; then echo "PostgreSQL fixture failed to start" >&2; exit 1; fi
   sleep 1
 done
