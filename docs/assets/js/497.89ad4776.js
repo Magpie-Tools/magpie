@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunkmagpie_docs=self.webpackChunkmagpie_docs||[]).push([["497"],{3192(e,c,s){s.d(c,{createArchitectureServices:()=>a.S});var a=s(4549);s(184)}}]);
