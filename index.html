@@ -3,19 +3,19 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Magpie</title>
+    <title>Magpie: self-hosted proxy manager</title>
     <meta
       name="description"
-      content="Magpie is a self-hosted proxy manager that scrapes public proxies, checks health, scores reputation, and provides rotating endpoints via a web dashboard."
+      content="Magpie is a self-hosted, multi-user proxy manager. It collects proxies, keeps checking which ones work, and serves the healthy ones through rotating endpoints."
     />
     <meta
       name="keywords"
       content="proxy manager, self-hosted proxy, proxy scraper, proxy checker, rotating proxies, proxy pool, proxy reputation, SOCKS5, HTTP proxy, proxy dashboard"
     />
     <meta name="robots" content="index, follow" />
-    <meta name="theme-color" content="#0e0e0e" />
+    <meta name="theme-color" content="#205241" />
 
-    <meta property="og:title" content="Magpie - Multi-user AIO Proxy Manager" />
+    <meta property="og:title" content="Magpie - Self-hosted proxy manager" />
     <meta
       property="og:description"
       content="Self-hosted proxy manager with auto-scraping, health checks, reputation scoring, and rotating endpoints."
@@ -25,11 +25,11 @@
     <meta property="og:image" content="https://magpie.tools/magpie-og.jpg" />
     <meta
       property="og:image:alt"
-      content="Magpie dashboard preview showing proxy statistics and charts"
+      content="Magpie: collect, check and rotate proxies on your own servers"
     />
 
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Magpie - Multi-user AIO Proxy Manager" />
+    <meta name="twitter:title" content="Magpie - Self-hosted proxy manager" />
     <meta
       name="twitter:description"
       content="Self-hosted proxy manager with auto-scraping, health checks, reputation scoring, and rotating endpoints."
@@ -40,12 +40,13 @@
     <link rel="canonical" href="https://magpie.tools/" />
 
     <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
-    <script type="module" crossorigin src="/assets/index-CWld2n8T.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-BIxLiKrP.css">
+    <script type="module" crossorigin src="/assets/index-LTz0Dk_A.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-8bF43gZh.css">
   </head>
   <body>
     <div id="root"></div>
@@ -54,14 +55,14 @@
         "@context": "https://schema.org",
         "@type": "SoftwareApplication",
         "name": "Magpie",
-        "description": "Self-hosted proxy manager that scrapes public proxies, checks health, scores reputation, and provides rotating endpoints.",
+        "description": "Self-hosted, multi-user proxy manager that collects proxies, checks which ones work, and serves them through rotating endpoints.",
         "applicationCategory": "DeveloperApplication",
         "operatingSystem": "Docker, Linux, Windows, macOS",
         "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
         "license": "https://www.gnu.org/licenses/agpl-3.0.html",
         "url": "https://magpie.tools/",
         "downloadUrl": "https://github.com/Magpie-Tools/magpie",
-        "softwareHelp": "https://github.com/Magpie-Tools/magpie#readme"
+        "softwareHelp": "https://magpie.tools/docs/"
       }
     </script>
     <script type="application/ld+json">
@@ -74,7 +75,7 @@
             "name": "What is Magpie?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Magpie is a self-hosted proxy manager that scrapes public proxies, checks health, scores reputation, and provides rotating endpoints through a web dashboard."
+              "text": "Magpie is a self-hosted, multi-user proxy manager. It collects proxies from web sources and imports, checks which ones work, tracks their health and reputation, and serves the healthy ones through rotating proxy endpoints."
             }
           },
           {
@@ -82,31 +83,39 @@
             "name": "How do I install Magpie?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Use the one-command installer for macOS/Linux or Windows PowerShell, or run Docker Compose from the repository."
+              "text": "Run the one-command installer for macOS, Linux, or Windows PowerShell. It creates a magpie/ directory, generates credentials, and starts the stack with Docker Compose. You can also clone the repository and run Docker Compose yourself."
             }
           },
           {
             "@type": "Question",
-            "name": "Does Magpie require Docker?",
+            "name": "Does installing Magpie give me a working proxy pool?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "The recommended installation uses Docker Desktop or Docker Engine with Compose, and local development runs services with Docker as well."
+              "text": "No. Magpie manages the proxies you import or discover from sources you configure. It does not ship a proxy pool."
             }
           },
           {
             "@type": "Question",
-            "name": "What is PROXY_ENCRYPTION_KEY and why is it important?",
+            "name": "Which protocols are supported?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "It encrypts stored proxy secrets. If you change it after first run, previously stored secrets cannot be decrypted."
+              "text": "HTTP, HTTPS, SOCKS4, and SOCKS5 proxies. Rotating endpoints support TCP, QUIC, and HTTP/3 transports where applicable. IPv4, IPv6, and provider hostnames can be imported, checked, and rotated."
             }
           },
           {
             "@type": "Question",
-            "name": "Which proxy protocols are supported?",
+            "name": "Can my team share one Magpie instance?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "HTTP, HTTPS, SOCKS4, and SOCKS5 proxies are supported, plus TCP and QUIC/HTTP3 transport protocols."
+              "text": "Yes. Accounts join workspaces with owner, admin, operator, or viewer roles. Workspaces own the proxies, rotating endpoints, and alert rules."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Why does PROXY_ENCRYPTION_KEY matter?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "It encrypts proxy credentials stored in PostgreSQL. Keep it unchanged and backed up. If it changes or is lost, previously stored credentials cannot be decrypted."
             }
           },
           {
@@ -114,7 +123,7 @@
             "name": "Is Magpie open source?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Yes. Magpie is licensed under AGPL-3.0."
+              "text": "Yes. Magpie is licensed under the GNU Affero General Public License v3.0."
             }
           }
         ]
@@ -126,7 +135,7 @@
         "@type": "Organization",
         "name": "Magpie",
         "url": "https://magpie.tools/",
-        "logo": "https://magpie.tools/magpie-light-green.svg",
+        "logo": "https://magpie.tools/icon-512.png",
         "sameAs": [
           "https://github.com/Magpie-Tools/magpie",
           "https://discord.gg/7FWAGXzhkC"
