@@ -156,12 +156,15 @@ go test ./internal/checkerconfig -run '^$' -bench '^Benchmark' -benchmem -count=
 # Set MAGPIE_TEST_POSTGRES_DSN to an isolated test database first.
 go test ./internal/database -run '^TestCheckerEvidencePersistenceOperationBudgetPostgres$' -count=1 -v
 MAGPIE_TEST_CHECKER_SCALE_ROUTES=1000000 \
-  go test ./internal/database -run '^TestCheckerRefreshAndRecentChecksScalePostgres$' -count=1 -v -timeout=20m
+  go test ./internal/database -run '^TestCheckerRefreshScalePostgres$' -count=1 -v -timeout=20m
+MAGPIE_TEST_CHECKER_SCALE_ROUTES=1000000 \
+  go test ./internal/dashboard -run '^TestRecentChecksEvidenceLookupsAreBoundedPostgres$' -count=1 -v -timeout=20m
 ```
 
 The scale regression loads a million routes that all have checker overrides. It
-measures unchanged reconciliation, one-route tag membership and rule edits, and
-the actual recent-checks dashboard query. Allocation limits and SQL execution
+measures unchanged reconciliation and one-route tag membership and rule edits.
+The dashboard regression runs the recent-checks query of a snapshot build on a
+million routes. Allocation limits and SQL execution
 plans catch workspace-wide reads even when projection writes remain scoped.
 The regular suite uses 20,000 routes; the explicit million-route run is a release
 validation gate. Column-only saves have a separate regression asserting that no

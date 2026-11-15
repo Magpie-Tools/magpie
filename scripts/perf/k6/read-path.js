@@ -34,9 +34,9 @@ export const options = {
       preAllocatedVUs: envInt("PERF_VUS_PROXY_FILTERS", 20),
       maxVUs: envInt("PERF_MAX_VUS_PROXY_FILTERS", 200),
     },
-    rest_dashboard: {
+    graphql_dashboard: {
       executor: "constant-arrival-rate",
-      exec: "restDashboard",
+      exec: "graphqlDashboard",
       rate: envInt("PERF_RATE_DASHBOARD", 10),
       timeUnit: "1s",
       duration,
@@ -69,8 +69,8 @@ export const options = {
     "http_req_failed{scenario:rest_proxy_filters}": ["rate<0.01"],
     "http_req_duration{scenario:rest_proxy_filters}": ["p(95)<700", "p(99)<1500"],
 
-    "http_req_failed{scenario:rest_dashboard}": ["rate<0.01"],
-    "http_req_duration{scenario:rest_dashboard}": ["p(95)<900", "p(99)<1800"],
+    "http_req_failed{scenario:graphql_dashboard}": ["rate<0.01"],
+    "http_req_duration{scenario:graphql_dashboard}": ["p(95)<900", "p(99)<1800"],
 
     "http_req_failed{scenario:graphql_viewer}": ["rate<0.01"],
     "http_req_duration{scenario:graphql_viewer}": ["p(95)<1000", "p(99)<2000"],
@@ -115,13 +115,28 @@ export function restProxyFilters(data) {
   });
 }
 
-export function restDashboard(data) {
-  const response = http.get(`${data.apiBase}/getDashboardInfo`, {
-    headers: authHeaders(data.token),
-  });
+// The dashboard page's query. A snapshot older than 30 s triggers at most one
+// cluster-wide rebuild per workspace; the request waits at most 2 s for it.
+const dashboardQuery = `query DashboardPerf { viewer { dashboardView {
+  status rebuilding collectedAt
+  info { totalChecks checksThisMonth totalScraped }
+  recentProxyChecks(limit: 8) { id }
+  fastestAliveProxies(limit: 100) { id }
+  aliveCount proxyCount
+} } }`;
+
+const dashboardStatuses = ["FRESH", "STALE", "PENDING", "FAILED"];
+
+export function graphqlDashboard(data) {
+  const response = graphqlRequest(data.apiBase, data.token, dashboardQuery);
+  const payload = parseJSON(response);
+  const view = payload?.data?.viewer?.dashboardView;
   check(response, {
-    "rest_dashboard: status 200": (r) => r.status === 200,
-    "rest_dashboard: body json": (r) => parseJSON(r) !== null,
+    "graphql_dashboard: status 200": (r) => r.status === 200,
+    "graphql_dashboard: no errors": () => Array.isArray(payload?.errors) === false,
+    "graphql_dashboard: snapshot status": () => dashboardStatuses.includes(view?.status),
+    "graphql_dashboard: live check figures": () =>
+      ["totalChecks", "checksThisMonth"].every((field) => Number.isFinite(view?.info?.[field]) && view.info[field] >= 0),
   });
 }
 
