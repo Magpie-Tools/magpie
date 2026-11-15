@@ -48,9 +48,9 @@ dashboard, and connect your applications through the API or a rotating proxy.
 <details>
   <summary>More screenshots</summary>
   <img src="resources/screenshots/proxyList.png" alt="Proxy list">
-  <img src="resources/screenshots/addProxies.png" alt="Add proxies">
-  <img src="resources/screenshots/scrapeSources.png" alt="Scrape sources">
-  <img src="resources/screenshots/alerts.png" alt="Alert rules">
+  <img src="resources/screenshots/proxyDetails.png" alt="Proxy details">
+  <img src="resources/screenshots/workspace.png" alt="Workspace allowances">
+  <img src="resources/screenshots/alerts.png" alt="Alert destinations">
 </details>
 
 ## Install
