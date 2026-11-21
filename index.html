@@ -3,36 +3,36 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Magpie: open-source proxy checker and rotator</title>
+    <title>Magpie: self-hosted proxy manager</title>
     <meta
       name="description"
-      content="Magpie is an open-source proxy manager. It checks your proxies around the clock and routes traffic only through the healthy ones, from one rotating endpoint. Free to self-host, with a hosted version on the way."
+      content="Magpie is a self-hosted, multi-user proxy manager. It collects proxies, keeps checking which ones work, and serves the healthy ones through rotating endpoints."
     />
     <meta
       name="keywords"
-      content="proxy manager, proxy monitoring, proxy checker, rotating proxies, hosted proxy manager, self-hosted proxy manager, proxy pool, proxy reputation, SOCKS5, HTTP proxy, proxy dashboard"
+      content="proxy manager, self-hosted proxy, proxy scraper, proxy checker, rotating proxies, proxy pool, proxy reputation, SOCKS5, HTTP proxy, proxy dashboard"
     />
     <meta name="robots" content="index, follow" />
     <meta name="theme-color" content="#205241" />
 
-    <meta property="og:title" content="Magpie - Stop sending requests through dead proxies" />
+    <meta property="og:title" content="Magpie - Self-hosted proxy manager" />
     <meta
       property="og:description"
-      content="Open-source proxy manager with continuous health checks, reputation scoring, alerts, and rotating endpoints. Self-host it for free, hosted version coming."
+      content="Self-hosted proxy manager with auto-scraping, health checks, reputation scoring, and rotating endpoints."
     />
     <meta property="og:url" content="https://magpie.tools/" />
     <meta property="og:type" content="website" />
     <meta property="og:image" content="https://magpie.tools/magpie-og.jpg" />
     <meta
       property="og:image:alt"
-      content="Magpie: stop sending requests through dead proxies"
+      content="Magpie: collect, check and rotate proxies on your own servers"
     />
 
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Magpie - Stop sending requests through dead proxies" />
+    <meta name="twitter:title" content="Magpie - Self-hosted proxy manager" />
     <meta
       name="twitter:description"
-      content="Open-source proxy manager with continuous health checks, reputation scoring, alerts, and rotating endpoints. Self-host it for free, hosted version coming."
+      content="Self-hosted proxy manager with auto-scraping, health checks, reputation scoring, and rotating endpoints."
     />
     <meta name="twitter:url" content="https://magpie.tools/" />
     <meta name="twitter:image" content="https://magpie.tools/magpie-og.jpg" />
@@ -45,9 +45,8 @@
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
-    <script type="module" crossorigin src="/assets/main-DYOWt2y-.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/SiteHeader-DmtxQb46.js">
-    <link rel="stylesheet" crossorigin href="/assets/SiteHeader-xiOUDBWp.css">
+    <script type="module" crossorigin src="/assets/index-3hUKkl9V.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-oZaVdMPe.css">
   </head>
   <body>
     <div id="root"></div>
@@ -56,7 +55,7 @@
         "@context": "https://schema.org",
         "@type": "SoftwareApplication",
         "name": "Magpie",
-        "description": "Open-source, multi-user proxy manager that checks your proxies, shows which ones work, and serves the healthy ones through rotating endpoints.",
+        "description": "Self-hosted, multi-user proxy manager that collects proxies, checks which ones work, and serves them through rotating endpoints.",
         "applicationCategory": "DeveloperApplication",
         "operatingSystem": "Docker, Linux, Windows, macOS",
         "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
@@ -76,39 +75,23 @@
             "name": "What is Magpie?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Magpie is an open-source, multi-user proxy manager. You import your proxies, it keeps checking which ones work, tracks their health and reputation, and serves the healthy ones through rotating proxy endpoints. You can self-host it today, and a hosted version is in development."
+              "text": "Magpie is a self-hosted, multi-user proxy manager. It collects proxies from web sources and imports, checks which ones work, tracks their health and reputation, and serves the healthy ones through rotating proxy endpoints."
             }
           },
           {
             "@type": "Question",
-            "name": "Does Magpie sell proxies?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "No. Magpie manages the proxies you bring from any provider. It does not sell or ship a proxy pool."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "Is there a hosted version?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Not yet. Hosted Magpie is in development and will run on dedicated servers in the EU. The pricing page shows the planned launch pricing, which may change before launch."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "Will self-hosting stay free?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Yes. Magpie is licensed under the GNU Affero General Public License v3.0, and you can run it on your own servers at no cost. Hosted plans pay for running it for you."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "How do I self-host Magpie?",
+            "name": "How do I install Magpie?",
             "acceptedAnswer": {
               "@type": "Answer",
               "text": "Run the one-command installer for macOS, Linux, or Windows PowerShell. It creates a magpie/ directory, generates credentials, and starts the stack with Docker Compose. You can also clone the repository and run Docker Compose yourself."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Does installing Magpie give me a working proxy pool?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "No. Magpie manages the proxies you import or discover from sources you configure. It does not ship a proxy pool."
             }
           },
           {
@@ -121,7 +104,7 @@
           },
           {
             "@type": "Question",
-            "name": "Can my team share one workspace?",
+            "name": "Can my team share one Magpie instance?",
             "acceptedAnswer": {
               "@type": "Answer",
               "text": "Yes. Accounts join workspaces with owner, admin, operator, or viewer roles. Workspaces own the proxies, rotating endpoints, and alert rules."
@@ -129,10 +112,18 @@
           },
           {
             "@type": "Question",
-            "name": "How are proxy credentials stored?",
+            "name": "Why does PROXY_ENCRYPTION_KEY matter?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Proxy usernames and passwords are encrypted in PostgreSQL with PROXY_ENCRYPTION_KEY. If you self-host, keep that key unchanged and backed up. If it changes or is lost, previously stored credentials cannot be decrypted."
+              "text": "It encrypts proxy credentials stored in PostgreSQL. Keep it unchanged and backed up. If it changes or is lost, previously stored credentials cannot be decrypted."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Is Magpie open source?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. Magpie is licensed under the GNU Affero General Public License v3.0."
             }
           }
         ]
